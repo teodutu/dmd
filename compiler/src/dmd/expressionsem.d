@@ -10737,6 +10737,73 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         return;
     }
 
+    /**
+     * If the given expression is a `CatExp`, the function tries to lower it to
+     * `_d_arraycatnTX`.
+     *
+     * Params:
+     *      ee = the expression to attempt to lower
+     * Returns:
+     *      `_d_arraycatnTX(e1, e2, ..., en)` if `ee` is `e1 ~ e2 ~ ... en`
+     *      `ee` otherwise
+     */
+    private Expression lowerToArrayCat(Expression ee)
+    {
+        auto exp = ee.isCatExp();
+        if (!exp)
+            return ee;
+
+        // String literals are concatenated by the compiler. No lowering is needed.
+        if ((exp.e1.isStringExp() && (exp.e2.isIntegerExp() || exp.e2.isStringExp())) ||
+            (exp.e2.isStringExp() && (exp.e1.isIntegerExp() || exp.e1.isStringExp())))
+            return exp;
+
+        Identifier hook = global.params.tracegc ? Id._d_arraycatnTXTrace : Id._d_arraycatnTX;
+        if (!verifyHookExist(exp.loc, *sc, hook, "concatenating arrays"))
+        {
+            setError();
+            return result;
+        }
+
+        void handleCatArgument(Expressions *arguments, Expression e)
+        {
+            /* Skip `file`, `line`, and `funcname` if the hook of the parent
+             * `CatExp` is `_d_arraycatnTXTrace`.
+             */
+            if (auto ce = isRuntimeHook(e, hook))
+            {
+                if (hook == Id._d_arraycatnTX)
+                    arguments.pushSlice((*ce.arguments)[]);
+                else
+                    arguments.pushSlice((*ce.arguments)[3 .. $]);
+            }
+            else
+                arguments.push(e);
+        }
+
+        auto arguments = new Expressions();
+        if (global.params.tracegc)
+        {
+            auto funcname = (sc.callsc && sc.callsc.func) ?
+                sc.callsc.func.toPrettyChars() : sc.func.toPrettyChars();
+            arguments.push(new StringExp(exp.loc, exp.loc.filename.toDString()));
+            arguments.push(new IntegerExp(exp.loc, exp.loc.linnum, Type.tint32));
+            arguments.push(new StringExp(exp.loc, funcname.toDString()));
+        }
+
+        handleCatArgument(arguments, exp.e1);
+        handleCatArgument(arguments, exp.e2);
+
+        Expression id = new IdentifierExp(exp.loc, Id.empty);
+        id = new DotIdExp(exp.loc, id, Id.object);
+
+        auto tiargs = new Objects();
+        tiargs.push(exp.type);
+        id = new DotTemplateInstanceExp(exp.loc, id, hook, tiargs);
+        id = new CallExp(exp.loc, id, arguments);
+        return id.expressionSemantic(sc);
+    }
+
     override void visit(CatExp exp)
     {
         // https://dlang.org/spec/expression.html#cat_expressions
@@ -10824,14 +10891,9 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                 exp.e2 = exp.e2.implicitCastTo(sc, tb1next);
                 exp.type = tb1next.arrayOf();
             L2elem:
-                if (tb2.ty == Tarray || tb2.ty == Tsarray)
-                {
-                    // Make e2 into [e2]
-                    exp.e2 = new ArrayLiteralExp(exp.e2.loc, exp.type, exp.e2);
-                }
-                else if (checkNewEscape(sc, exp.e2, false))
+                if (!(tb2.ty == Tarray || tb2.ty == Tsarray) && checkNewEscape(sc, exp.e2, false))
                     return setError();
-                result = exp.optimize(WANTvalue);
+                result = lowerToArrayCat(exp.optimize(WANTvalue));
                 return;
             }
         }
@@ -10862,14 +10924,9 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                 exp.e1 = exp.e1.implicitCastTo(sc, tb2next);
                 exp.type = tb2next.arrayOf();
             L1elem:
-                if (tb1.ty == Tarray || tb1.ty == Tsarray)
-                {
-                    // Make e1 into [e1]
-                    exp.e1 = new ArrayLiteralExp(exp.e1.loc, exp.type, exp.e1);
-                }
-                else if (checkNewEscape(sc, exp.e1, false))
+                if (!(tb1.ty == Tarray || tb1.ty == Tsarray) && checkNewEscape(sc, exp.e1, false))
                     return setError();
-                result = exp.optimize(WANTvalue);
+                result = lowerToArrayCat(exp.optimize(WANTvalue));
                 return;
             }
         }
@@ -10891,7 +10948,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
 
         if (Expression ex = typeCombine(exp, sc))
         {
-            result = ex;
+            result = lowerToArrayCat(ex);
             return;
         }
         exp.type = exp.type.toHeadMutable();
@@ -10923,7 +10980,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             return;
         }
 
-        result = e;
+        result = lowerToArrayCat(e);
     }
 
     override void visit(MulExp exp)

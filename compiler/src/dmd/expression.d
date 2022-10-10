@@ -1496,7 +1496,8 @@ extern (C++) abstract class Expression : ASTNode
                 // Lowered non-@nogc'd hooks will print their own error message inside of nogc.d (NOGCVisitor.visit(CallExp e)),
                 // so don't print anything to avoid double error messages.
                 if (!(f.ident == Id._d_HookTraceImpl || f.ident == Id._d_arraysetlengthT
-                    || f.ident == Id._d_arrayappendT || f.ident == Id._d_arrayappendcTX))
+                    || f.ident == Id._d_arrayappendT || f.ident == Id._d_arrayappendcTX
+                    || f.ident == Id._d_arraycatnTX))
                     error("`@nogc` %s `%s` cannot call non-@nogc %s `%s`",
                         sc.func.kind(), sc.func.toPrettyChars(), f.kind(), f.toPrettyChars());
 
@@ -7238,6 +7239,68 @@ bool isArrayConstructionOrAssign(const Identifier id)
     return id == Id._d_arrayctor || id == Id._d_arraysetctor ||
         id == Id._d_arrayassign_l || id == Id._d_arrayassign_r ||
         id == Id._d_arraysetassign;
+}
+
+/**
+ * Checks if the given expresion is a call to the runtime hook `id`.
+ *
+ * Params:
+ *    e = the expression to check
+ *    id = the identifier of the runtime hook
+ * Returns:
+ *    `e` cast to `CallExp` if it's the hook, `null` otherwise
+ */
+CallExp isRuntimeHook(Expression e, Identifier id)
+{
+    if (auto ce = e.isCallExp())
+    {
+        if (auto ve = ce.e1.isVarExp())
+        {
+            if (auto fd = ve.var.isFuncDeclaration())
+            {
+                // If `_d_HookTraceImpl` is found, resolve the underlying hook
+                // and replace `e` and `fd` with it.
+                removeHookTraceImpl(ce, fd);
+                return fd.ident == id ? ce : null;
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Removes `_d_HookTraceImpl` if found from `ce` and `fd`.
+ * This is needed for the CTFE interception code to be able to find hooks that are called though the hook's `*Trace`
+ * wrapper.
+ *
+ * This is done by replacing `_d_HookTraceImpl!(T, Hook, errMsg)(..., parameters)` with `Hook(parameters)`.
+ * Parameters:
+ *  ce = The CallExp that possible will be be replaced
+ *  fd = Fully resolve function declaration that `ce` would call
+ */
+void removeHookTraceImpl(ref CallExp ce, ref FuncDeclaration fd)
+{
+    if (fd.ident != Id._d_HookTraceImpl)
+        return;
+
+    auto oldCE = ce;
+
+    // Get the Hook from the second template parameter
+    TemplateInstance templateInstance = fd.parent.isTemplateInstance;
+    RootObject hook = (*templateInstance.tiargs)[1];
+    assert(hook.dyncast() == DYNCAST.dsymbol, "Expected _d_HookTraceImpl's second template parameter to be an alias to the hook!");
+    fd = (cast(Dsymbol)hook).isFuncDeclaration;
+
+    // Remove the first three trace parameters
+    auto arguments = new Expressions();
+    arguments.reserve(ce.arguments.length - 3);
+    arguments.pushSlice((*ce.arguments)[3 .. $]);
+
+    ce = ctfeEmplaceExp!CallExp(ce.loc, ctfeEmplaceExp!VarExp(ce.loc, fd, false), arguments);
+
+    if (global.params.verbose)
+        message("strip     %s =>\n          %s", oldCE.toChars(), ce.toChars());
 }
 
 /******************************

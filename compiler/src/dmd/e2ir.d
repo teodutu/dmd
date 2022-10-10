@@ -1697,59 +1697,8 @@ elem* toElem(Expression e, IRState *irs)
 
     elem* visitCat(CatExp ce)
     {
-        /* Do this check during code gen rather than semantic() because concatenation is
-         * allowed in CTFE, and cannot distinguish that in semantic().
-         */
-        if (irs.params.betterC)
-        {
-            error(ce.loc, "array concatenation of expression `%s` requires the GC which is not available with -betterC", ce.toChars());
-            return el_long(TYint, 0);
-        }
-
-        Type tb1 = ce.e1.type.toBasetype();
-        Type tb2 = ce.e2.type.toBasetype();
-
-        Type ta = (tb1.ty == Tarray || tb1.ty == Tsarray) ? tb1 : tb2;
-
-        elem *e;
-        if (ce.e1.op == EXP.concatenate)
-        {
-            CatExp ex = ce;
-
-            // Flatten ((a ~ b) ~ c) to [a, b, c]
-            Elems elems;
-            elems.shift(array_toDarray(ex.e2.type, toElem(ex.e2, irs)));
-            do
-            {
-                ex = cast(CatExp)ex.e1;
-                elems.shift(array_toDarray(ex.e2.type, toElem(ex.e2, irs)));
-            } while (ex.e1.op == EXP.concatenate);
-            elems.shift(array_toDarray(ex.e1.type, toElem(ex.e1, irs)));
-
-            // We can't use ExpressionsToStaticArray because each exp needs
-            // to have array_toDarray called on it first, as some might be
-            // single elements instead of arrays.
-            Symbol *sdata;
-            elem *earr = ElemsToStaticArray(ce.loc, ce.type, &elems, &sdata);
-
-            elem *ep = el_pair(TYdarray, el_long(TYsize_t, elems.length), el_ptr(sdata));
-            if (irs.target.os == Target.OS.Windows && irs.target.is64bit)
-                ep = addressElem(ep, Type.tvoid.arrayOf());
-            ep = el_param(ep, getTypeInfo(ce, ta, irs));
-            e = el_bin(OPcall, TYdarray, el_var(getRtlsym(RTLSYM.ARRAYCATNTX)), ep);
-            toTraceGC(irs, e, ce.loc);
-            e = el_combine(earr, e);
-        }
-        else
-        {
-            elem *e1 = eval_Darray(ce.e1);
-            elem *e2 = eval_Darray(ce.e2);
-            elem *ep = el_params(e2, e1, getTypeInfo(ce, ta, irs), null);
-            e = el_bin(OPcall, TYdarray, el_var(getRtlsym(RTLSYM.ARRAYCATT)), ep);
-            toTraceGC(irs, e, ce.loc);
-        }
-        elem_setLoc(e,ce.loc);
-        return e;
+        assert(0, "Glue layer is trying to reference `_d_arraycatnTX`. " ~
+            "This case should have been handled in the semantic phase ");
     }
 
     /***************************************
@@ -3248,6 +3197,30 @@ elem* toElem(Expression e, IRState *irs)
     elem* visitCall(CallExp ce)
     {
         //printf("[%s] CallExp.toElem('%s') %p, %s\n", ce.loc.toChars(), ce.toChars(), ce, ce.type.toChars());
+        /* Do this check during code gen rather than semantic() because concatenation is
+         * allowed in CTFE, and cannot distinguish that in semantic().
+         */
+        if (irs.params.betterC && ce.f && ce.f.ident == Id._d_arraycatnTX)
+        {
+            /* Extracts the arguments of `_d_arraycatnTX` and displays the error
+             * as a `CatExp` so the loewering remains transparent to the user.
+             */
+            auto args = ce.arguments;
+            const (char)* arg = (*args)[0].toChars();
+            string originalExp = cast(string) arg[0 .. strlen(arg)];
+
+            for (size_t i = 1; i < ce.arguments.length; i++)
+            {
+                arg = (*args)[i].toChars();
+                originalExp ~= " ~ " ~ arg[0 .. strlen(arg)];
+            }
+            originalExp ~= '\0';
+
+            error(ce.loc, "array concatenation of expression `%s` requires the GC which is not available with -betterC",
+                originalExp.ptr);
+            return el_long(TYint, 0);
+        }
+
         assert(ce.e1.type);
         Type t1 = ce.e1.type.toBasetype();
         Type ectype = t1;

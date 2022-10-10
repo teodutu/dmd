@@ -553,7 +553,7 @@ static foreach (tok; __traits(allMembers, TOK))
         @(tests[tok].description)
         unittest
         {
-            const newCode = "first_token " ~ tests[tok].code;
+            const newCode = "first_token " ~ tests[tok].code ~ '\0';
 
             scope lexer = new Lexer("test.d", newCode.ptr, 0, newCode.length, 0, 0);
 

@@ -4916,6 +4916,51 @@ public:
             }
             else if (fd.ident == Id._d_arrayappendcTX)
                 assert(0, "CTFE cannot interpret _d_arrayappendcTX!");
+            else if (fd.ident == Id._d_arraycatnTX)
+            {
+                /* In expressionsem.d, the following expression:
+                 *     `a1 ~ a2 ~ ... ~ an`
+                 * was lowered to:
+                 *      `_d_arraycatnTX(a1, a2, ..., an)`
+                 * The following code will rewrite it back to `a1 ~ a2 ~ ... ~ an`
+                 * and then interpret that expression.
+                 */
+                Type tb = e.type.toBasetype();
+                Type tbNext = tb.nextOf();
+
+                Expression prepareCatOperand(Expression exp)
+                {
+                    /* Convert `elem ~ array` to `[elem] ~ array` if `elem` is
+                     * itself an array. This is needed because interpreting the
+                     * `CatExp` calls `Cat()`, which cannot handle
+                     * concatenations between different types, except for
+                     * strings and chars.
+                     */
+                    Type expTb = exp.type.toBasetype();
+
+                    if (exp.type.implicitConvTo(tbNext) >= MATCH.convert &&
+                        (tb.ty == Tarray || tb.ty == Tsarray) &&
+                        (expTb.ty == Tarray || expTb.ty == Tsarray))
+                        return new ArrayLiteralExp(exp.loc, e.type, exp);
+                    return exp;
+                }
+
+                assert(e.arguments.length >= 2);
+                auto args = e.arguments;
+
+                auto ce = new CatExp(e.loc, prepareCatOperand((*args)[0]),
+                    prepareCatOperand((*args)[1]));
+                ce.type = e.type;
+
+                for (size_t i = 2; i < e.arguments.length; i++)
+                {
+                    ce = new CatExp(e.loc, ce, prepareCatOperand((*args)[i]));
+                    ce.type = e.type;
+                }
+
+                result = interpret(ce, istate);
+                return;
+            }
         }
         else if (auto soe = ecall.isSymOffExp())
         {
@@ -6504,33 +6549,6 @@ public:
     {
         assert(0); // This should never be interpreted
     }
-
-    /*********************************************
-     * Checks if the given expresion is a call to the runtime hook `id`.
-     * Params:
-     *    e = the expression to check
-     *    id = the identifier of the runtime hook
-     * Returns:
-     *    `e` cast to `CallExp` if it's the hook, `null` otherwise
-     */
-    private CallExp isRuntimeHook(Expression e, Identifier id)
-    {
-        if (auto ce = e.isCallExp())
-        {
-            if (auto ve = ce.e1.isVarExp())
-            {
-                if (auto fd = ve.var.isFuncDeclaration())
-                {
-                    // If `_d_HookTraceImpl` is found, resolve the underlying
-                    // hook and replace `e` and `fd` with it.
-                    removeHookTraceImpl(ce, fd);
-                    return fd.ident == id ? ce : null;
-                }
-            }
-        }
-
-        return null;
-    }
 }
 
 /********************************************
@@ -7608,38 +7626,4 @@ private void setValue(VarDeclaration vd, Expression newval)
     }
     assert((vd.storage_class & (STC.out_ | STC.ref_)) ? isCtfeReferenceValid(newval) : isCtfeValueValid(newval));
     ctfeGlobals.stack.setValue(vd, newval);
-}
-
-/**
- * Removes `_d_HookTraceImpl` if found from `ce` and `fd`.
- * This is needed for the CTFE interception code to be able to find hooks that are called though the hook's `*Trace`
- * wrapper.
- *
- * This is done by replacing `_d_HookTraceImpl!(T, Hook, errMsg)(..., parameters)` with `Hook(parameters)`.
- * Parameters:
- *  ce = The CallExp that possible will be be replaced
- *  fd = Fully resolve function declaration that `ce` would call
- */
-private void removeHookTraceImpl(ref CallExp ce, ref FuncDeclaration fd)
-{
-    if (fd.ident != Id._d_HookTraceImpl)
-        return;
-
-    auto oldCE = ce;
-
-    // Get the Hook from the second template parameter
-    TemplateInstance templateInstance = fd.parent.isTemplateInstance;
-    RootObject hook = (*templateInstance.tiargs)[1];
-    assert(hook.dyncast() == DYNCAST.dsymbol, "Expected _d_HookTraceImpl's second template parameter to be an alias to the hook!");
-    fd = (cast(Dsymbol)hook).isFuncDeclaration;
-
-    // Remove the first three trace parameters
-    auto arguments = new Expressions();
-    arguments.reserve(ce.arguments.length - 3);
-    arguments.pushSlice((*ce.arguments)[3 .. $]);
-
-    ce = ctfeEmplaceExp!CallExp(ce.loc, ctfeEmplaceExp!VarExp(ce.loc, fd, false), arguments);
-
-    if (global.params.verbose)
-        message("strip     %s =>\n          %s", oldCE.toChars(), ce.toChars());
 }

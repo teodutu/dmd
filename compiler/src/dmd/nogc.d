@@ -95,6 +95,17 @@ public:
             }
             f.printGCUsage(e.loc, "operator `~=` may cause a GC allocation");
         }
+        else if (fd.ident == Id._d_arraycatnTX)
+        {
+            if (f.setGC())
+            {
+                e.error("cannot use operator `~` in `@nogc` %s `%s`",
+                    f.kind(), f.toPrettyChars());
+                err = true;
+                return;
+            }
+            f.printGCUsage(e.loc, "operator `~` may cause a GC allocation");
+        }
     }
 
     override void visit(ArrayLiteralExp e)
@@ -205,14 +216,15 @@ public:
 
     override void visit(CatExp e)
     {
+        /* CatExp will exist in `__traits(compiles, ...)` statements.
+         * Other cases are lowered to `_d_arraycatnTX(e1, e2, ..., en)` which
+         * will generate the warning about GC usage. See visit(CallExp).
+         */
         if (f.setGC())
         {
-            e.error("cannot use operator `~` in `@nogc` %s `%s`",
-                f.kind(), f.toPrettyChars());
             err = true;
             return;
         }
-        f.printGCUsage(e.loc, "operator `~` may cause a GC allocation");
     }
 }
 

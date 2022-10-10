@@ -8,53 +8,70 @@
 */
 module core.internal.array.concatenation;
 
-/// See $(REF _d_arraycatnTX, rt,lifetime)
-private extern (C) void[] _d_arraycatnTX(const TypeInfo ti, scope byte[][] arrs) pure nothrow;
-
-/// Implementation of `_d_arraycatnTX` and `_d_arraycatnTXTrace`
-template _d_arraycatnTXImpl(Tarr : ResultArrT[], ResultArrT : T[], T)
+private template CatElems(string catSingleElem, string catArray)
 {
-    import core.internal.array.utils : _d_HookTraceImpl;
-
-    private enum errorMessage = "Cannot concatenate arrays if compiling without support for runtime type information!";
-
-    /**
-    * Concatenating the arrays inside of `arrs`.
-    * `_d_arraycatnTX([a, b, c])` means `a ~ b ~ c`.
-    * Params:
-    *  arrs = Array containing arrays that will be concatenated.
-    * Returns:
-    *  A newly allocated array that contains all the elements from all the arrays in `arrs`.
-    * Bugs:
-    *  This function template was ported from a much older runtime hook that bypassed safety,
-    *  purity, and throwabilty checks. To prevent breaking existing code, this function template
-    *  is temporarily declared `@trusted pure nothrow` until the implementation can be brought up to modern D expectations.
-    */
-    ResultArrT _d_arraycatnTX(scope const Tarr arrs) @trusted pure nothrow
-    {
-        pragma(inline, false);
-        version (D_TypeInfo)
-        {
-            auto ti = typeid(ResultArrT);
-
-            byte[][] arrs2 = (cast(byte[]*)arrs.ptr)[0 .. arrs.length];
-            void[] result = ._d_arraycatnTX(ti, arrs2);
-            return (cast(T*)result.ptr)[0 .. result.length];
-        }
-        else
-            assert(0, errorMessage);
-    }
-
-    /**
-    * TraceGC wrapper around $(REF _d_arraycatnTX, core,internal,array,concat).
-    * Bugs:
-    *  This function template was ported from a much older runtime hook that bypassed safety,
-    *  purity, and throwabilty checks. To prevent breaking existing code, this function template
-    *  is temporarily declared `@trusted pure nothrow` until the implementation can be brought up to modern D expectations.
-    */
-    alias _d_arraycatnTXTrace = _d_HookTraceImpl!(ResultArrT, _d_arraycatnTX, errorMessage);
+    const char[] CatElems = q{
+        foreach (ref from; froms)
+            static if (is (typeof(from) : T))
+                } ~ catSingleElem ~ q{
+            else
+            } ~ "{\n" ~ catArray ~ "\n}\n";
 }
 
+Tret _d_arraycatnTX(Tret, Tarr...)(scope auto ref Tarr froms) @trusted
+{
+    import core.internal.traits : hasElaborateCopyConstructor, Unqual;
+    import core.lifetime : copyEmplace;
+    import core.stdc.string : memcpy;
+
+    Tret res;
+    size_t totalLen;
+
+    alias T = typeof(res[0]);
+    enum elemSize = T.sizeof;
+    enum hasPostblit = __traits(hasPostblit, T);
+
+    foreach (ref from; froms)
+        static if (is (typeof(from) : T))
+            totalLen++;
+        else
+            totalLen += from.length;
+
+    if (totalLen == 0)
+        return res;
+    res.length = totalLen;
+
+    /* Currently, if both a postblit and a cpctor are defined, the postblit is
+     * used. If this changes, the condition below will have to be adapted.
+     */
+    static if (hasElaborateCopyConstructor!T && !hasPostblit)
+    {
+        size_t i = 0;
+        mixin(CatElems!("copyEmplace(cast(T) from, res[i++]);",
+            q{if (from.length)
+                    foreach (ref elem; from)
+                        copyEmplace(cast(T) elem, res[i++]);}));
+    }
+    else
+    {
+        auto resptr = cast(Unqual!T *) res;
+        mixin(CatElems!("memcpy(resptr++, cast(Unqual!T *) &from, elemSize);",
+            q{const len = from.length;
+            if (len)
+            {
+                memcpy(resptr, cast(Unqual!T *) from, len * elemSize);
+                resptr += len;
+            }}));
+
+        static if (hasPostblit)
+            foreach (ref elem; res)
+                (cast() elem).__xpostblit();
+    }
+
+    return res;
+}
+
+// postblit
 @safe unittest
 {
     int counter;
@@ -67,9 +84,84 @@ template _d_arraycatnTXImpl(Tarr : ResultArrT[], ResultArrT : T[], T)
         }
     }
 
-    S[][] arr = [[S(0), S(1), S(2), S(3)], [S(4), S(5), S(6), S(7)]];
-    S[] result = _d_arraycatnTXImpl!(typeof(arr))._d_arraycatnTX(arr);
+    S[] arr1 = [S(0), S(1), S(2)];
+    S[] arr2 = [];
+    S[] arr3 = [S(6), S(7), S(8)];
+    S elem = S(9);
+    S[] result = _d_arraycatnTX!(S[])(arr1, arr2, arr3, elem);
 
-    assert(counter == 8);
-    assert(result == [S(0), S(1), S(2), S(3), S(4), S(5), S(6), S(7)]);
+    assert(counter == 7);
+    assert(result == [S(0), S(1), S(2), S(6), S(7), S(8), S(9)]);
+}
+
+// copy constructor
+@safe unittest
+{
+    int counter;
+    struct S
+    {
+        int val;
+        this(ref return scope S rhs)
+        {
+            val = rhs.val;
+            counter++;
+        }
+    }
+
+    S[] arr1 = [S(0), S(1), S(2)];
+    S[] arr2 = [S(3), S(4), S(5)];
+    S[] arr3 = [S(6), S(7), S(8)];
+    S elem = S(9);
+    S[] result = _d_arraycatnTX!(S[])(arr1, elem, arr2, arr3);
+
+    assert(counter == 10);
+    assert(result == [S(0), S(1), S(2), S(9), S(3), S(4), S(5), S(6), S(7), S(8)]);
+}
+
+// throwing
+@safe unittest
+{
+    int counter;
+    bool didThrow;
+    struct S
+    {
+        int val;
+        this(this)
+        {
+            counter++;
+            if (counter == 4)
+                throw new Exception("");
+        }
+    }
+
+    try
+    {
+        S[] arr1 = [S(0), S(1), S(2)];
+        S[] arr2 = [S(3), S(4), S(5)];
+        _d_arraycatnTX!(S[])(arr1, arr2);
+    }
+    catch (Exception)
+    {
+        didThrow = true;
+    }
+
+    assert(counter == 4);
+    assert(didThrow);
+}
+
+/**
+ * TraceGC wrapper around $(REF _d_arraycatnTX, core,internal,array,concatenation).
+ */
+Tret _d_arraycatnTXTrace(Tret, Tarr...)(string file, int line, string funcname, scope auto ref Tarr froms) @trusted
+{
+    version (D_TypeInfo)
+    {
+        import core.internal.array.utils: TraceHook, gcStatsPure, accumulatePure;
+        mixin(TraceHook!(Tarr.stringof, "_d_arraycatnTX"));
+
+        import core.lifetime: forward;
+        return _d_arraycatnTX!Tret(forward!froms);
+    }
+    else
+        assert(0, "Cannot concatenate arrays if compiling without support for runtime type information!");
 }
