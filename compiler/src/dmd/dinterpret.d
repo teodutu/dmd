@@ -4916,51 +4916,6 @@ public:
             }
             else if (fd.ident == Id._d_arrayappendcTX)
                 assert(0, "CTFE cannot interpret _d_arrayappendcTX!");
-            else if (fd.ident == Id._d_arraycatnTX)
-            {
-                /* In expressionsem.d, the following expression:
-                 *     `a1 ~ a2 ~ ... ~ an`
-                 * was lowered to:
-                 *      `_d_arraycatnTX(a1, a2, ..., an)`
-                 * The following code will rewrite it back to `a1 ~ a2 ~ ... ~ an`
-                 * and then interpret that expression.
-                 */
-                Type tb = e.type.toBasetype();
-                Type tbNext = tb.nextOf();
-
-                Expression prepareCatOperand(Expression exp)
-                {
-                    /* Convert `elem ~ array` to `[elem] ~ array` if `elem` is
-                     * itself an array. This is needed because interpreting the
-                     * `CatExp` calls `Cat()`, which cannot handle
-                     * concatenations between different types, except for
-                     * strings and chars.
-                     */
-                    Type expTb = exp.type.toBasetype();
-
-                    if (exp.type.implicitConvTo(tbNext) >= MATCH.convert &&
-                        (tb.ty == Tarray || tb.ty == Tsarray) &&
-                        (expTb.ty == Tarray || expTb.ty == Tsarray))
-                        return new ArrayLiteralExp(exp.loc, e.type, exp);
-                    return exp;
-                }
-
-                assert(e.arguments.length >= 2);
-                auto args = e.arguments;
-
-                auto ce = new CatExp(e.loc, prepareCatOperand((*args)[0]),
-                    prepareCatOperand((*args)[1]));
-                ce.type = e.type;
-
-                for (size_t i = 2; i < e.arguments.length; i++)
-                {
-                    ce = new CatExp(e.loc, ce, prepareCatOperand((*args)[i]));
-                    ce.type = e.type;
-                }
-
-                result = interpret(ce, istate);
-                return;
-            }
         }
         else if (auto soe = ecall.isSymOffExp())
         {
@@ -5882,7 +5837,25 @@ public:
                 e2 = ue2.copy();
         }
 
-        *pue = ctfeCat(e.loc, e.type, e1, e2);
+        Expression prepareCatOperand(Expression exp)
+        {
+            /* Convert `elem ~ array` to `[elem] ~ array` if `elem` is itself an
+             * array. This is needed because interpreting the `CatExp` calls
+             * `Cat()`, which cannot handle concatenations between different
+             * types, except for strings and chars.
+             */
+            auto tb = e.type.toBasetype();
+            auto tbNext = tb.nextOf();
+            auto expTb = exp.type.toBasetype();
+
+            if (exp.type.implicitConvTo(tbNext) >= MATCH.convert &&
+                (tb.ty == Tarray || tb.ty == Tsarray) &&
+                (expTb.ty == Tarray || expTb.ty == Tsarray))
+                return new ArrayLiteralExp(exp.loc, e.type, exp);
+            return exp;
+        }
+
+        *pue = ctfeCat(e.loc, e.type, prepareCatOperand(e1), prepareCatOperand(e2));
         result = pue.exp();
 
         if (CTFEExp.isCantExp(result))

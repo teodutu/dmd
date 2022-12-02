@@ -1697,8 +1697,7 @@ elem* toElem(Expression e, IRState *irs)
 
     elem* visitCat(CatExp ce)
     {
-        assert(0, "Glue layer is trying to reference `_d_arraycatnTX`. " ~
-            "This case should have been handled in the semantic phase ");
+        return toElem(ce.lowering, irs);
     }
 
     /***************************************

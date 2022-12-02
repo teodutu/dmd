@@ -10893,7 +10893,8 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             L2elem:
                 if (!(tb2.ty == Tarray || tb2.ty == Tsarray) && checkNewEscape(sc, exp.e2, false))
                     return setError();
-                result = lowerToArrayCat(exp.optimize(WANTvalue));
+                exp.lowering = lowerToArrayCat(exp.optimize(WANTvalue));
+                result = exp;
                 return;
             }
         }
@@ -10926,7 +10927,8 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             L1elem:
                 if (!(tb1.ty == Tarray || tb1.ty == Tsarray) && checkNewEscape(sc, exp.e1, false))
                     return setError();
-                result = lowerToArrayCat(exp.optimize(WANTvalue));
+                exp.lowering = lowerToArrayCat(exp.optimize(WANTvalue));
+                result = exp;
                 return;
             }
         }
@@ -10948,7 +10950,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
 
         if (Expression ex = typeCombine(exp, sc))
         {
-            result = lowerToArrayCat(ex);
+            result = ex;
             return;
         }
         exp.type = exp.type.toHeadMutable();
@@ -10980,7 +10982,8 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             return;
         }
 
-        result = lowerToArrayCat(e);
+        exp.lowering = lowerToArrayCat(e);
+        result = exp;
     }
 
     override void visit(MulExp exp)

@@ -7743,6 +7743,7 @@ public:
 class CatExp final : public BinExp
 {
 public:
+    Expression lowering;
     Expression* resolveLoc(const Loc& loc, Scope* sc) override;
     void accept(Visitor* v) override;
 };

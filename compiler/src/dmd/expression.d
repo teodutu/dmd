@@ -6388,6 +6388,8 @@ extern (C++) final class MinExp : BinExp
  */
 extern (C++) final class CatExp : BinExp
 {
+    Expression lowering;    // call to druntime hook `_d_arraycatnTX`
+
     extern (D) this(const ref Loc loc, Expression e1, Expression e2)
     {
         super(loc, EXP.concatenate, __traits(classInstanceSize, CatExp), e1, e2);
