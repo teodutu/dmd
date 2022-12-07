@@ -1697,7 +1697,10 @@ elem* toElem(Expression e, IRState *irs)
 
     elem* visitCat(CatExp ce)
     {
-        return toElem(ce.lowering, irs);
+        printf("e2ir: loc = %s;\n\tce = %s\n\tlowering = %s\n", ce.loc.toChars(), ce.toChars(), ce.lowering.toChars());
+        auto elem = toElem(ce.lowering, irs);
+        printf("after toElem\n");
+        return elem;
     }
 
     /***************************************

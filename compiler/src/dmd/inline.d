@@ -752,6 +752,7 @@ public:
 
         override void visit(CallExp e)
         {
+            printf("CallExp:: e = %s\n", e.toChars());
             auto ce = e.copy().isCallExp();
             ce.e1 = doInlineAs!Expression(e.e1, ids);
             ce.arguments = arrayExpressionDoInline(e.arguments);
@@ -1283,7 +1284,7 @@ public:
 
     override void visit(CallExp e)
     {
-        //printf("CallExp.inlineScan() %s\n", e.toChars());
+        printf("CallExp.inlineScan() %s\n", e.toChars());
         visitCallExp(e, null, false);
     }
 
@@ -1303,7 +1304,7 @@ public:
         inlineScan(e.e1);
         arrayInlineScan(e.arguments);
 
-        //printf("visitCallExp() %s\n", e.toChars());
+        printf("visitCallExp() %s\n", e.toChars());
         FuncDeclaration fd;
 
         void inlineFd()
@@ -1344,6 +1345,7 @@ public:
          */
         if (auto ve = e.e1.isVarExp())
         {
+            printf("e.e1.isVarExp\n");
             fd = ve.var.isFuncDeclaration();
             if (fd)
                 // delegate call
@@ -1380,6 +1382,7 @@ public:
         }
         else if (auto dve = e.e1.isDotVarExp())
         {
+            printf("e.e1.isDotVarExp\n");
             fd = dve.var.isFuncDeclaration();
             if (fd && fd != parent && canInline(fd, true, false, asStatements))
             {
@@ -1399,6 +1402,7 @@ public:
         else if (e.e1.op == EXP.star &&
                  (cast(PtrExp)e.e1).e1.op == EXP.variable)
         {
+            printf("EXP.star\n");
             auto ve = e.e1.isPtrExp().e1.isVarExp();
             VarDeclaration v = ve.var.isVarDeclaration();
             if (v && v._init && onlyOneAssign(v, parent))
@@ -1427,6 +1431,7 @@ public:
         }
         else if (auto fe = e.e1.isFuncExp())
         {
+            printf("e.e1.isFuncExp\n");
             if (fe.fd)
             {
                 fd = fe.fd;
@@ -1437,6 +1442,7 @@ public:
         }
         else
         {
+            printf("else\n");
             return;
         }
 

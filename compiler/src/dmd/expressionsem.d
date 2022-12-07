@@ -10810,18 +10810,21 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         //printf("CatExp.semantic() %s\n", toChars());
         if (exp.type)
         {
+            exp.lowering = lowerToArrayCat(exp);
             result = exp;
             return;
         }
 
         if (Expression ex = binSemanticProp(exp, sc))
         {
+            exp.lowering = lowerToArrayCat(ex);
             result = ex;
             return;
         }
         Expression e = exp.op_overload(sc);
         if (e)
         {
+            exp.lowering = lowerToArrayCat(e);
             result = e;
             return;
         }
@@ -10893,8 +10896,18 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             L2elem:
                 if (!(tb2.ty == Tarray || tb2.ty == Tsarray) && checkNewEscape(sc, exp.e2, false))
                     return setError();
-                exp.lowering = lowerToArrayCat(exp.optimize(WANTvalue));
-                result = exp;
+
+                printf("exp = %s\n", exp.toChars());
+                auto opt = exp.optimize(WANTvalue);
+                printf("opt = %s; cat = %p\n", opt.toChars(), opt.isCatExp());
+                // if (opt.isCatExp())
+                // {
+                //     exp.lowering = lowerToArrayCat(opt);
+                //     printf("lowering = %s\n", exp.lowering.toChars());
+                //     result = exp;
+                // }
+                // else
+                    result = opt;
                 return;
             }
         }
@@ -10927,8 +10940,18 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             L1elem:
                 if (!(tb1.ty == Tarray || tb1.ty == Tsarray) && checkNewEscape(sc, exp.e1, false))
                     return setError();
-                exp.lowering = lowerToArrayCat(exp.optimize(WANTvalue));
-                result = exp;
+
+                printf("exp = %s\n", exp.toChars());
+                auto opt = exp.optimize(WANTvalue);
+                printf("opt = %s; cat = %p\n", opt.toChars(), opt.isCatExp());
+                // if (opt.isCatExp())
+                // {
+                //     exp.lowering = lowerToArrayCat(opt);
+                //     printf("lowering = %s\n", exp.lowering.toChars());
+                //     result = exp;
+                // }
+                // else
+                    result = opt;
                 return;
             }
         }
@@ -10982,8 +11005,9 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             return;
         }
 
-        exp.lowering = lowerToArrayCat(e);
+        exp.lowering = lowerToArrayCat(exp);
         result = exp;
+        // printf("exp = %s;\n\tlowering = %s\n", exp.toChars(), exp.lowering.toChars());
     }
 
     override void visit(MulExp exp)

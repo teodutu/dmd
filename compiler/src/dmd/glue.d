@@ -650,8 +650,8 @@ private UnitTestDeclaration needsDeferredNested(FuncDeclaration fd)
 void FuncDeclaration_toObjFile(FuncDeclaration fd, bool multiobj)
 {
     ClassDeclaration cd = fd.parent.isClassDeclaration();
-    //printf("FuncDeclaration_toObjFile(%p, %s.%s)\n", fd, fd.parent.toChars(), fd.toChars());
-    //printf("storage_class: %llx\n", fd.storage_class);
+    printf("FuncDeclaration_toObjFile(%p, %s.%s)\n", fd, fd.parent.toChars(), fd.toChars());
+    printf("storage_class: %llx\n", fd.storage_class);
 
     //if (type) printf("type = %s\n", type.toChars());
     version (none)
