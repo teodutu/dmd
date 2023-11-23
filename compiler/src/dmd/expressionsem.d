@@ -2185,7 +2185,8 @@ private bool checkNogc(FuncDeclaration f, ref Loc loc, Scope* sc)
      * verified instead. This is to keep errors related to the original code
      * and not the lowering.
      */
-    if (f.ident == Id._d_newitemT || f.ident == Id._d_newarrayT || f.ident == Id._d_newarraymTX)
+    if (f.ident == Id._d_newitemT || f.ident == Id._d_newarrayT || f.ident == Id._d_newarraymTX ||
+        f.ident == Id._d_arrayliteralTX)
         return false;
 
     if (!f.isNogc())
@@ -4382,15 +4383,75 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         result = exp;
     }
 
+    // TODO: add comm to explain
+    private Type removeTypeQualifiers(Type t, ref bool isShared)
+    {
+        isShared = t.isShared();
+        return t.unqualify(MODFlags.wild | MODFlags.const_ | MODFlags.immutable_ | MODFlags.shared_);
+    }
+
+    private Expression tryLowerToArrayLiteral(ArrayLiteralExp e)
+    {
+        Type tb = e.type.toBasetype();
+        const length = e.elements ? e.elements.length : 0;
+        // if (!e.onstack && tb.ty != Tsarray && !(sc.flags & SCOPE.Cfile && tb.ty == Tpointer) &&
+        // printf("exp = %s; loc = %s; codegen = %d\n", e.toChars(), e.loc.toChars(), sc.needsCodegen());
+        // if (length && sc.needsCodegen())
+        // printf("lowering %s\n", e.toChars());
+        if (!global.params.betterC && !e.lowering && !(sc.flags & SCOPE.Cfile))
+        {
+            // printf("inside if\n");
+            auto hook = global.params.tracegc ? Id._d_arrayliteralTXTrace : Id._d_arrayliteralTX;
+            if (!verifyHookExist(e.loc, *sc, hook, "array literal"))
+                return e;
+
+            // printf("array literal exp = %s\n", e.toChars());
+
+            /* Lower the memory allocation and initialization of `[x1, x2, ..., xn]`
+             * to `_d_arrayliteralTX!T(n)`.
+             */
+            Expression lowering = new IdentifierExp(e.loc, Id.empty);
+            lowering = new DotIdExp(e.loc, lowering, Id.object);
+            auto tiargs = new Objects();
+            /* Remove `inout`, `const`, `immutable` and `shared` to reduce
+             * the number of generated `_d_arrayliteralTX` instances.
+             */
+            bool isShared;
+            tiargs.push(removeTypeQualifiers(e.type.nextOf(), isShared));
+            lowering = new DotTemplateInstanceExp(e.loc, lowering, hook, tiargs);
+
+            auto arguments = new Expressions();
+            if (global.params.tracegc)
+            {
+                auto funcname = (sc.callsc && sc.callsc.func) ?
+                    sc.callsc.func.toPrettyChars() : sc.func.toPrettyChars();
+                arguments.push(new StringExp(e.loc, e.loc.filename.toDString()));
+                arguments.push(new IntegerExp(e.loc, e.loc.linnum, Type.tint32));
+                arguments.push(new StringExp(e.loc, funcname.toDString()));
+            }
+            arguments.push(new IntegerExp(e.loc, length, Type.tsize_t));
+            arguments.push(new IntegerExp(e.loc, isShared, Type.tbool));
+
+            lowering = new CallExp(e.loc, lowering, arguments);
+            // printf("lowering before semantic = %s\n", lowering.toChars());
+            e.lowering = lowering.expressionSemantic(sc);
+            // printf("lowering of %s = %s\n", e.toChars(), e.lowering.toChars());
+        }
+
+        return e;
+    }
+
     override void visit(ArrayLiteralExp e)
     {
         static if (LOGSEMANTIC)
         {
-            printf("ArrayLiteralExp::semantic('%s')\n", e.toChars());
+            printf("ArrayLiteralExp::semantic('%s') loc = %s\n", e.toChars(), e.loc.toChars());
         }
         if (e.type)
         {
-            result = e;
+            // printf("ale has type %s\n", e.loc.toChars());
+            result = tryLowerToArrayLiteral(e);
+            // printf("result = %s; loc = %s\n", result.toChars(), e.loc.toChars());
             return;
         }
 
@@ -4426,7 +4487,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         if (global.params.useTypeInfo && Type.dtypeinfo)
             semanticTypeInfo(sc, e.type);
 
-        result = e;
+        result = tryLowerToArrayLiteral(e);
     }
 
     override void visit(AssocArrayLiteralExp e)
@@ -5301,10 +5362,8 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
                 /* Remove `inout`, `const`, `immutable` and `shared` to reduce
                  * the number of generated `_d_newarrayT` instances.
                  */
-                const isShared = exp.type.nextOf.isShared();
-                auto t = exp.type.nextOf.unqualify(MODFlags.wild | MODFlags.const_ |
-                    MODFlags.immutable_ | MODFlags.shared_);
-                tiargs.push(t);
+                bool isShared;
+                tiargs.push(removeTypeQualifiers(exp.type.nextOf, isShared));
                 lowering = new DotTemplateInstanceExp(exp.loc, lowering, hook, tiargs);
 
                 auto arguments = new Expressions();

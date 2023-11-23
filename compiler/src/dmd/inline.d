@@ -903,8 +903,12 @@ public:
         override void visit(ArrayLiteralExp e)
         {
             auto ce = e.copy().isArrayLiteralExp();
+            if (auto lowering = ce.lowering)
+                ce.lowering = doInlineAs!Expression(lowering, ids);
+
             ce.basis = doInlineAs!Expression(e.basis, ids);
             ce.elements = arrayExpressionDoInline(e.elements);
+
             result = ce;
 
             semanticTypeInfo(null, e.type);
@@ -1541,6 +1545,9 @@ public:
     override void visit(ArrayLiteralExp e)
     {
         //printf("ArrayLiteralExp.inlineScan()\n");
+        if (auto lowering = e.lowering)
+            inlineScan(lowering);
+
         inlineScan(e.basis);
         arrayInlineScan(e.elements);
     }

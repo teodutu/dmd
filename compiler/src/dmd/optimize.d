@@ -352,6 +352,7 @@ Expression optimize(Expression e, int result, bool keepLvalue = false)
     {
         if (e.elements)
         {
+            expOptimize(e.lowering, result & WANTexpand);
             expOptimize(e.basis, result & WANTexpand);
             foreach (ref ex; (*e.elements)[])
             {

@@ -11,6 +11,11 @@ module core.internal.array.construction;
 
 import core.internal.traits : Unqual;
 
+version (D_ProfileGC)
+{
+    version (D_TypeInfo) import core.internal.array.utils : TraceHook, gcStatsPure, accumulatePure;
+}
+
 debug(PRINTF)
 {
     import core.stdc.stdio;
@@ -348,8 +353,8 @@ T[] _d_newarrayUPureNothrow(T)(size_t length, bool isShared=false) pure nothrow 
 T[] _d_newarrayU(T)(size_t length, bool isShared=false) @trusted
 {
     import core.exception : onOutOfMemoryError;
-    import core.internal.traits : Unqual;
     import core.internal.array.utils : __arrayStart, __setArrayAllocLength, __arrayAlloc;
+    import core.internal.traits : Unqual;
 
     alias UnqT = Unqual!T;
 
@@ -480,9 +485,7 @@ version (D_ProfileGC)
     {
         version (D_TypeInfo)
         {
-            import core.internal.array.utils : TraceHook, gcStatsPure, accumulatePure;
             mixin(TraceHook!(T.stringof, "_d_newarrayT"));
-
             return _d_newarrayT!T(length, isShared);
         }
         else
@@ -588,12 +591,65 @@ version (D_ProfileGC)
     {
         version (D_TypeInfo)
         {
-            import core.internal.array.utils : TraceHook, gcStatsPure, accumulatePure;
             mixin(TraceHook!(T.stringof, "_d_newarraymTX"));
-
             return _d_newarraymTX!(Tarr, T)(dims, isShared);
         }
         else
             assert(0, "Cannot create new multi-dimensional array if compiling without support for runtime type information!");
+    }
+}
+
+/**
+ * Allocate an array literal
+ *
+ * Rely on the caller to do the initialization of the array.
+ *
+ * ---
+ * int[] getArr()
+ * {
+ *   return [10, 20];
+ *   // is lowered to:
+ *   auto res = = _d_arrayliteralTX!int(2, false);
+ *   res[0] = 10;
+ *   res[1] = 20;
+ *   return res[0..2];
+ * }
+ * ---
+ *
+ * Params:
+ *   length = `.length` of array literal
+ *   isShared = whether the type of the array is shared
+ *
+ * Returns: pointer to allocated array
+ */
+T* _d_arrayliteralTX(T)(size_t length, bool isShared=true) @trusted
+{
+    return _d_newarrayU!T(length, isShared).ptr;
+}
+
+unittest
+{
+    struct S { int x; }
+
+    auto arr = _d_arrayliteralTX!S(3)[0 .. 3];
+
+    assert(arr.ptr);
+    assert(arr.length == 3);
+}
+
+version (D_ProfileGC)
+{
+    /**
+     * TraceGC wrapper around $(REF _d_arrayliteralTX, core,internal,array,construction).
+     */
+    T[] _d_arrayliteralTXTrace(T)(string file, int line, string funcname, size_t length, bool isShared) @trusted
+    {
+        version (D_TypeInfo)
+        {
+            mixin(TraceHook!(T.stringof, "_d_arrayliteralTX"));
+            return _d_arrayliteralTX!T(length, isShared);
+        }
+        else
+            assert(0, "Cannot create array literal if compiling without support for runtime type information!");
     }
 }

@@ -2653,6 +2653,7 @@ extern (C++) final class TypeSArray : TypeArray
         auto elements = new Expressions(d);
         foreach (ref e; *elements)
             e = null;
+        // printf("mtype: loc = %s\n", loc.toChars());
         auto ae = new ArrayLiteralExp(Loc.initial, this, elementinit, elements);
         return ae;
     }

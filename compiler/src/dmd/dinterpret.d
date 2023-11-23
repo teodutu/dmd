@@ -187,6 +187,8 @@ T ctfeEmplaceExp(T : Expression, Args...)(Args args)
         return new T(args);
     auto p = ctfeGlobals.region.malloc(__traits(classInstanceSize, T));
     emplaceExp!T(p, args);
+    auto e = cast(T)p;
+    // printf("ctfeEmplaceExp %s; loc = %s\n", e.toChars(), e.loc.toChars());
     return cast(T)p;
 }
 
@@ -2529,6 +2531,7 @@ public:
             }
             emplaceExp!(ArrayLiteralExp)(pue, e.loc, e.type, basis, expsx);
             auto ale = pue.exp().isArrayLiteralExp();
+            ale.lowering = e.lowering;
             ale.ownedByCtfe = OwnedBy.ctfe;
             result = ale;
         }
@@ -2745,6 +2748,7 @@ public:
                 element = copyLiteral(elem).copy();
             emplaceExp!(ArrayLiteralExp)(pue, loc, newtype, elements);
             auto ae = pue.exp().isArrayLiteralExp();
+            // TODO: add lowering here?
             ae.ownedByCtfe = OwnedBy.ctfe;
             return ae;
         }
@@ -5188,6 +5192,7 @@ public:
             assert(type);
             emplaceExp!(ArrayLiteralExp)(pue, e.loc, type, elements);
             auto ale = pue.exp().isArrayLiteralExp();
+            // TODO: add lowering here?
             ale.ownedByCtfe = OwnedBy.ctfe;
             return ale;
         }
@@ -7136,6 +7141,12 @@ private Expression copyRegionExp(Expression e)
 
     if (ctfeGlobals.region.contains(cast(void*)e))
     {
+        // printf("CTFE copy exp = %s\n", e.toChars());
+        // if (auto ale = e.isArrayLiteralExp())
+        // {
+        //     printf("CTFE copy exp = %s\n", e.toChars());
+        //     return ale.copy();
+        // }
         return e.copy();
     }
     return e;

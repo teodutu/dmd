@@ -227,11 +227,14 @@ UnionExp copyLiteral(Expression e)
     if (auto ale = e.isArrayLiteralExp())
     {
         auto elements = copyLiteralArray(ale.elements, ale.basis);
+        // Expression lowering = copyLiteral(ale.lowering);
 
         emplaceExp!(ArrayLiteralExp)(&ue, e.loc, e.type, elements);
 
         ArrayLiteralExp r = ue.exp().isArrayLiteralExp();
+        r.lowering = ale.lowering;
         r.ownedByCtfe = OwnedBy.ctfe;
+        r.lowering = ale.lowering;
         return ue;
     }
     if (auto aae = e.isAssocArrayLiteralExp())
@@ -545,6 +548,7 @@ ArrayLiteralExp createBlockDuplicatedArrayLiteral(UnionExp* pue, const ref Loc l
     }
     emplaceExp!(ArrayLiteralExp)(pue, loc, type, elements);
     auto ale = pue.exp().isArrayLiteralExp();
+    // TODO: Add lowering here?
     ale.ownedByCtfe = OwnedBy.ctfe;
     return ale;
 }
@@ -1443,6 +1447,7 @@ UnionExp ctfeCat(const ref Loc loc, Type type, Expression e1, Expression e2)
         ArrayLiteralExp es2 = e2.isArrayLiteralExp();
         emplaceExp!(ArrayLiteralExp)(&ue, es1.loc, type, copyLiteralArray(es1.elements));
         es1 = ue.exp().isArrayLiteralExp();
+        es1.lowering = e1.isArrayLiteralExp().lowering;
         es1.elements.insert(es1.elements.length, copyLiteralArray(es2.elements));
         return ue;
     }
@@ -1759,6 +1764,8 @@ Expression changeArrayLiteralLength(UnionExp* pue, const ref Loc loc, TypeArray 
         }
         emplaceExp!(ArrayLiteralExp)(pue, loc, arrayType, elements);
         ArrayLiteralExp aae = pue.exp().isArrayLiteralExp();
+        if (auto ale = oldval.isArrayLiteralExp())
+            aae.lowering = ale.lowering;
         aae.ownedByCtfe = OwnedBy.ctfe;
     }
     return pue.exp();
@@ -2024,6 +2031,7 @@ UnionExp voidInitLiteral(Type t, VarDeclaration var)
         }
         emplaceExp!(ArrayLiteralExp)(&ue, var.loc, tsa, elements);
         ArrayLiteralExp ae = ue.exp().isArrayLiteralExp();
+        // TODO: add lowering here?
         ae.ownedByCtfe = OwnedBy.ctfe;
     }
     else if (auto ts = t.isTypeStruct())

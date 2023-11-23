@@ -534,7 +534,9 @@ Initializer initializerSemantic(Initializer init, Scope* sc, ref Type tx, NeedIn
             auto arrayElements = new Expressions(cast(size_t) tsa.dim.toInteger());
             foreach (ref e; *arrayElements)
                 e = elem;
-            return new ArrayLiteralExp(i.exp.loc, tb, elem, arrayElements);
+            auto ale = new ArrayLiteralExp(i.exp.loc, tb, elem, arrayElements);
+            // printf("initsem 534: ale = %s; loc = %s\n", ale.toChars(), ale.loc.toChars());
+            return ale;
         }
 
         if (auto sa = sarrayRepeat(tb))
@@ -1135,6 +1137,7 @@ Initializer inferType(Initializer init, Scope* sc)
                 assert(!(*elements)[i].isErrorExp());
             }
             Expression e = new ArrayLiteralExp(init.loc, null, elements);
+            // printf("1093: e = %s; loc = %s\n", e.toChars(), init.loc.toChars());
             auto ei = new ExpInitializer(init.loc, e);
             return ei.inferType(sc);
         }
@@ -1153,7 +1156,10 @@ Initializer inferType(Initializer init, Scope* sc)
     Initializer visitExp(ExpInitializer init)
     {
         //printf("ExpInitializer::inferType() %s\n", init.toChars());
+        auto originalExp = init.exp.toChars();
+        // printf("ExpInitializer exp = %s\n", originalExp);
         init.exp = init.exp.expressionSemantic(sc);
+        // printf("\tdone semantic for %s: init.exp = %s\n", originalExp, init.exp.toChars());
 
         // for static alias this: https://issues.dlang.org/show_bug.cgi?id=17684
         if (init.exp.op == EXP.type)
@@ -1376,6 +1382,7 @@ Expression initializerToExpression(Initializer init, Type itype = null, const bo
                         foreach (ref e2; *elements2)
                             e2 = e;
                         e = new ArrayLiteralExp(e.loc, tn, elements2);
+                        // printf("1336: e = %s; loc = %s\n", e.toChars(), e.loc.toChars());
                     }
                 }
             }
@@ -1392,6 +1399,8 @@ Expression initializerToExpression(Initializer init, Type itype = null, const bo
         }
 
         Expression e = new ArrayLiteralExp(init.loc, init.type, elements);
+        // printf("1353: e = %s; loc = %s\n", e.toChars(), e.loc.toChars());
+
         return e;
     }
 
@@ -1410,6 +1419,7 @@ Expression initializerToExpression(Initializer init, Type itype = null, const bo
                 for (size_t j = 0; j < d; j++)
                     (*elements)[j] = e;
                 auto ae = new ArrayLiteralExp(e.loc, itype, elements);
+                // printf("1370: e = %s; loc = %s\n", ae.toChars(), e.loc.toChars());
                 return ae;
             }
         }

@@ -357,7 +357,13 @@ extern (C++) abstract class Expression : ASTNode
      */
     extern (D) final Expression copy()
     {
+        // static int cnt;
         Expression e;
+        // if (auto ale = this.isArrayLiteralExp())
+        // {
+        //     printf("copy ale %s; size = %zu; ale.size = %zu; loc = %s\n", ale.toChars(), size, ale.size,
+        //         loc.toChars());
+        // }
         if (!size)
         {
             debug
@@ -371,7 +377,16 @@ extern (C++) abstract class Expression : ASTNode
         // memory never freed, so can use the faster bump-pointer-allocation
         e = cast(Expression)allocmemory(size);
         //printf("Expression::copy(op = %d) e = %p\n", op, e);
-        return cast(Expression)memcpy(cast(void*)e, cast(void*)this, size);
+        auto ret = cast(Expression)memcpy(cast(void*)e, cast(void*)this, size);
+        // if (auto ale = ret.isArrayLiteralExp())
+        // {
+        //     printf("after copy ale %s; this = %p; this.lowering = %p; ale.lowering = %p; this.size = %zu; ale.size = %zu; loc = %s\n",
+        //         ale.toChars(), this, (cast (ArrayLiteralExp) this).lowering, ale.lowering, size, ale.size, loc.toChars());
+        //     if (loc.linnum == 10)
+        //         cnt++;
+        //     // assert(cnt != 2);
+        // }
+        return ret;
     }
 
     Expression syntaxCopy()
@@ -2015,8 +2030,15 @@ extern (C++) final class ArrayLiteralExp : Expression
 
     Expressions* elements;
 
+    Expression lowering;    // lowered druntime hook: `_d_arrayliteralTx`
+
     extern (D) this(const ref Loc loc, Type type, Expressions* elements) @safe
     {
+        // printf("ctor with elements loc = %s\n", loc.toChars());
+        // static int cnt;
+        // if (loc.linnum == 15)
+        //     ++cnt;
+        // assert(cnt != 2);
         super(loc, EXP.arrayLiteral);
         this.type = type;
         this.elements = elements;
@@ -2024,6 +2046,7 @@ extern (C++) final class ArrayLiteralExp : Expression
 
     extern (D) this(const ref Loc loc, Type type, Expression e)
     {
+        // printf("ctor with 1 element\n");
         super(loc, EXP.arrayLiteral);
         this.type = type;
         elements = new Expressions();
@@ -2032,6 +2055,7 @@ extern (C++) final class ArrayLiteralExp : Expression
 
     extern (D) this(const ref Loc loc, Type type, Expression basis, Expressions* elements) @safe
     {
+        // printf("ctor with basis + elements\n");
         super(loc, EXP.arrayLiteral);
         this.type = type;
         this.basis = basis;
@@ -2040,15 +2064,20 @@ extern (C++) final class ArrayLiteralExp : Expression
 
     static ArrayLiteralExp create(const ref Loc loc, Expressions* elements) @safe
     {
+        // printf("create\n");
         return new ArrayLiteralExp(loc, null, elements);
     }
 
     override ArrayLiteralExp syntaxCopy()
     {
-        return new ArrayLiteralExp(loc,
+        auto ale = new ArrayLiteralExp(loc,
             null,
             basis ? basis.syntaxCopy() : null,
             arraySyntaxCopy(elements));
+        if (lowering)
+            ale.lowering = lowering.syntaxCopy();
+
+        return ale;
     }
 
     override bool equals(const RootObject o) const

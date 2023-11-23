@@ -4680,6 +4680,7 @@ version (D_ProfileGC)
     public import core.internal.array.appending : _d_arrayappendcTXTrace;
     public import core.internal.array.concatenation : _d_arraycatnTXTrace;
     public import core.lifetime : _d_newitemTTrace;
+    public import core.internal.array.construction : _d_arrayliteralTXTrace;
     public import core.internal.array.construction : _d_newarrayTTrace;
     public import core.internal.array.construction : _d_newarraymTXTrace;
 }
@@ -4689,6 +4690,7 @@ public import core.internal.array.equality : __equals;
 public import core.internal.array.casting: __ArrayCast;
 public import core.internal.array.concatenation : _d_arraycatnTX;
 public import core.internal.array.construction : _d_arrayctor;
+public import core.internal.array.construction : _d_arrayliteralTX;
 public import core.internal.array.construction : _d_arraysetctor;
 public import core.internal.array.construction : _d_newarrayT;
 public import core.internal.array.construction : _d_newarraymTX;

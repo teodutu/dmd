@@ -4040,16 +4040,32 @@ elem* toElem(Expression e, ref IRState irs)
             }
             else
             {
+                if (!irs.params.useGC)
+                {
+                    irs.eSink.error(ale.loc,
+                        "array creation in expression `%s` requires the GC which is not available with -betterC",
+                        ale.toChars());
+                    return el_long(TYint, 0);
+                }
+
                 /* Instead of passing the initializers on the stack, allocate the
                 * array and assign the members inline.
                 * Avoids the whole variadic arg mess.
                 */
 
                 // call _d_arrayliteralTX(ti, dim)
-                e = el_bin(OPcall, TYnptr,
-                    el_var(getRtlsym(RTLSYM.ARRAYLITERALTX)),
-                    el_param(el_long(TYsize_t, dim), getTypeInfo(ale, ale.type, irs)));
-                toTraceGC(irs, e, ale.loc);
+                // e = el_bin(OPcall, TYnptr,
+                //     el_var(getRtlsym(RTLSYM.ARRAYLITERALTX)),
+                //     el_param(el_long(TYsize_t, dim), getTypeInfo(ale, ale.type, irs)));
+                // toTraceGC(irs, e, ale.loc);
+                if (!ale.lowering)
+                    printf("ale = %s; loc = %s; dim = %zu; onstack = %d\n", ale.toChars(),
+                        ale.loc.toChars(), dim, ale.onstack);
+                assert(ale.lowering);
+                auto ce = ale.lowering.isCallExp();
+                auto lenArg = ce.f.ident == Id._d_arrayliteralTX ? (*ce.arguments)[0] : (*ce.arguments)[3];
+                lenArg.isIntegerExp.setInteger(dim);
+                e = toElem(ale.lowering, irs);
 
                 Symbol *stmp = symbol_genauto(Type_toCtype(Type.tvoid.pointerTo()));
                 e = el_bin(OPeq, TYnptr, el_var(stmp), e);
