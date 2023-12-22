@@ -1246,6 +1246,14 @@ elem* toElem(Expression e, ref IRState irs)
         }
         else if (auto tda = t.isTypeDArray())
         {
+            if (!irs.params.useGC)
+            {
+                irs.eSink.error(ne.loc,
+                    "array creation in `%s` requires the GC which is not available with -betterC",
+                    ne.toChars());
+                return el_long(TYint, 0);
+            }
+
             elem *ezprefix = ne.argprefix ? toElem(ne.argprefix, irs) : null;
 
             assert(ne.arguments && ne.arguments.length >= 1);
