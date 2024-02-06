@@ -4062,10 +4062,12 @@ elem* toElem(Expression e, ref IRState irs)
                     printf("ale = %s; loc = %s; dim = %zu; onstack = %d\n", ale.toChars(),
                         ale.loc.toChars(), dim, ale.onstack);
                 assert(ale.lowering);
+                // printf("ale.type = %s\n", ale.type.toChars());
                 auto ce = ale.lowering.isCallExp();
                 auto lenArg = ce.f.ident == Id._d_arrayliteralTX ? (*ce.arguments)[0] : (*ce.arguments)[3];
                 lenArg.isIntegerExp.setInteger(dim);
                 e = toElem(ale.lowering, irs);
+                // [1, 2] -> arraylit(2) ~ 3
 
                 Symbol *stmp = symbol_genauto(Type_toCtype(Type.tvoid.pointerTo()));
                 e = el_bin(OPeq, TYnptr, el_var(stmp), e);
@@ -4073,6 +4075,8 @@ elem* toElem(Expression e, ref IRState irs)
                 e = el_combine(e, ExpressionsToStaticArray(irs, ale.loc, ale.elements, &stmp, 0, ale.basis));
 
                 e = el_combine(e, el_var(stmp));
+
+                // p =_d_arrayliteral(), [1, 2, 3], p
             }
         }
         else

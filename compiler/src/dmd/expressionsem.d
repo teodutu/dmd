@@ -4398,7 +4398,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         // printf("exp = %s; loc = %s; codegen = %d\n", e.toChars(), e.loc.toChars(), sc.needsCodegen());
         // if (length && sc.needsCodegen())
         // printf("lowering %s\n", e.toChars());
-        if (!global.params.betterC && !e.lowering && !(sc.flags & SCOPE.Cfile))
+        if (!global.params.betterC && !(sc.flags & SCOPE.Cfile))
         {
             // printf("inside if\n");
             auto hook = global.params.tracegc ? Id._d_arrayliteralTXTrace : Id._d_arrayliteralTX;
@@ -4416,21 +4416,23 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             /* Remove `inout`, `const`, `immutable` and `shared` to reduce
              * the number of generated `_d_arrayliteralTX` instances.
              */
-            bool isShared;
-            tiargs.push(removeTypeQualifiers(e.type.nextOf(), isShared));
+            // bool isShared;
+            // tiargs.push(removeTypeQualifiers(e.type.nextOf(), isShared));
+            tiargs.push(e.type);
+            // printf("type = %s\n", e.type.toChars());
             lowering = new DotTemplateInstanceExp(e.loc, lowering, hook, tiargs);
 
             auto arguments = new Expressions();
             if (global.params.tracegc)
             {
                 auto funcname = (sc.callsc && sc.callsc.func) ?
-                    sc.callsc.func.toPrettyChars() : sc.func.toPrettyChars();
+                    sc.callsc.func.toPrettyChars() : (sc.func ? sc.func.toPrettyChars() : sc._module.toPrettyChars());
                 arguments.push(new StringExp(e.loc, e.loc.filename.toDString()));
                 arguments.push(new IntegerExp(e.loc, e.loc.linnum, Type.tint32));
                 arguments.push(new StringExp(e.loc, funcname.toDString()));
             }
             arguments.push(new IntegerExp(e.loc, length, Type.tsize_t));
-            arguments.push(new IntegerExp(e.loc, isShared, Type.tbool));
+            // arguments.push(new IntegerExp(e.loc, isShared, Type.tbool));
 
             lowering = new CallExp(e.loc, lowering, arguments);
             // printf("lowering before semantic = %s\n", lowering.toChars());
@@ -10599,7 +10601,9 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
          * depends on the result of e1 in assignments.
          */
         {
+            // long[] x = [1, 2];
             Expression e2x = inferType(exp.e2, t1.baseElemOf());
+            // printf("assing e = %s; e2.type = %s\n", exp.toChars(), e2x.type ? e2x.type.toChars() : "no type");
             e2x = e2x.expressionSemantic(sc);
             if (!t1.isTypeSArray())
                 e2x = e2x.arrayFuncConv(sc);

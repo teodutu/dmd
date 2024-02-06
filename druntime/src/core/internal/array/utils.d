@@ -177,6 +177,149 @@ void __arrayClearPad()(ref BlkInfo info, size_t arrSize, size_t padSize) nothrow
     }
 }
 
+size_t structTypeInfoSize(const TypeInfo ti) pure nothrow @nogc
+{
+    if (ti && typeid(ti) is typeid(TypeInfo_Struct)) // avoid a complete dynamic type cast
+    {
+        auto sti = cast(TypeInfo_Struct)cast(void*)ti;
+        if (sti.xdtor)
+            return size_t.sizeof;
+    }
+    return 0;
+}
+
+BlkInfo __arrayAlloc()(size_t arrsize, const scope TypeInfo ti, const TypeInfo tinext) nothrow pure
+{
+    import core.checkedint;
+
+    size_t typeInfoSize = structTypeInfoSize(tinext);
+    size_t padsize = arrsize > MAXMEDSIZE ? LARGEPAD : ((arrsize > MAXSMALLSIZE ? MEDPAD : SMALLPAD) + typeInfoSize);
+
+    bool overflow;
+    auto padded_size = addu(arrsize, padsize, overflow);
+
+    if (overflow)
+        return BlkInfo();
+
+    uint attr = (!(tinext.flags & 1) ? BlkAttr.NO_SCAN : 0) | BlkAttr.APPENDABLE;
+    if (typeInfoSize)
+        attr |= BlkAttr.STRUCTFINAL | BlkAttr.FINALIZE;
+
+    auto bi = GC.qalloc(padded_size, attr, tinext);
+    __arrayClearPad(bi, arrsize, padsize);
+    return bi;
+}
+
+bool __setArrayAllocLength()(ref BlkInfo info, size_t newlength, bool isshared, const TypeInfo tinext, size_t oldlength = ~0) pure nothrow
+{
+    import core.atomic;
+
+    size_t typeInfoSize = structTypeInfoSize(tinext);
+
+    if (info.size <= 256)
+    {
+        import core.checkedint;
+
+        bool overflow;
+        auto newlength_padded = addu(newlength,
+                                     addu(SMALLPAD, typeInfoSize, overflow),
+                                     overflow);
+
+        if (newlength_padded > info.size || overflow)
+            // new size does not fit inside block
+            return false;
+
+        auto length = cast(ubyte *)(info.base + info.size - typeInfoSize - SMALLPAD);
+        if (oldlength != ~0)
+        {
+            if (isshared)
+            {
+                return cas(cast(shared)length, cast(ubyte)oldlength, cast(ubyte)newlength);
+            }
+            else
+            {
+                if (*length == cast(ubyte)oldlength)
+                    *length = cast(ubyte)newlength;
+                else
+                    return false;
+            }
+        }
+        else
+        {
+            // setting the initial length, no cas needed
+            *length = cast(ubyte)newlength;
+        }
+        if (typeInfoSize)
+        {
+            auto typeInfo = cast(TypeInfo*)(info.base + info.size - size_t.sizeof);
+            *typeInfo = cast() tinext;
+        }
+    }
+    else if (info.size < PAGESIZE)
+    {
+        if (newlength + MEDPAD + typeInfoSize > info.size)
+            // new size does not fit inside block
+            return false;
+        auto length = cast(ushort *)(info.base + info.size - typeInfoSize - MEDPAD);
+        if (oldlength != ~0)
+        {
+            if (isshared)
+            {
+                return cas(cast(shared)length, cast(ushort)oldlength, cast(ushort)newlength);
+            }
+            else
+            {
+                if (*length == oldlength)
+                    *length = cast(ushort)newlength;
+                else
+                    return false;
+            }
+        }
+        else
+        {
+            // setting the initial length, no cas needed
+            *length = cast(ushort)newlength;
+        }
+        if (typeInfoSize)
+        {
+            auto typeInfo = cast(TypeInfo*)(info.base + info.size - size_t.sizeof);
+            *typeInfo = cast() tinext;
+        }
+    }
+    else
+    {
+        if (newlength + LARGEPAD > info.size)
+            // new size does not fit inside block
+            return false;
+        auto length = cast(size_t *)(info.base);
+        if (oldlength != ~0)
+        {
+            if (isshared)
+            {
+                return cas(cast(shared)length, cast(size_t)oldlength, cast(size_t)newlength);
+            }
+            else
+            {
+                if (*length == oldlength)
+                    *length = newlength;
+                else
+                    return false;
+            }
+        }
+        else
+        {
+            // setting the initial length, no cas needed
+            *length = newlength;
+        }
+        if (typeInfoSize)
+        {
+            auto typeInfo = cast(TypeInfo*)(info.base + size_t.sizeof);
+            *typeInfo = cast()tinext;
+        }
+    }
+    return true; // resize succeeded
+}
+
 /**
  * Allocate an array memory block by applying the proper padding and assigning
  * block attributes if not inherited from the existing block.

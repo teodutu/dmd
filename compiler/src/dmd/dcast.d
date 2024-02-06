@@ -33,6 +33,7 @@ import dmd.func;
 import dmd.funcsem;
 import dmd.globals;
 import dmd.hdrgen;
+import dmd.id;
 import dmd.location;
 import dmd.impcnvtab;
 import dmd.importc;
@@ -182,11 +183,71 @@ Expression implicitCastTo(Expression e, Scope* sc, Type t)
         return visit(e);
     }
 
+    Expression tryLowerToArrayLiteral(Expression ee)
+    {
+        auto e = ee.isArrayLiteralExp();
+        if (!e)
+            return ee;
+
+        Type tb = e.type.toBasetype();
+        const length = e.elements ? e.elements.length : 0;
+        // if (!e.onstack && tb.ty != Tsarray && !(sc.flags & SCOPE.Cfile && tb.ty == Tpointer) &&
+        // printf("exp = %s; loc = %s; codegen = %d\n", e.toChars(), e.loc.toChars(), sc.needsCodegen());
+        // if (length && sc.needsCodegen())
+        // printf("lowering %s\n", e.toChars());
+        if (!global.params.betterC && !(sc.flags & SCOPE.Cfile))
+        {
+            // printf("inside if\n");
+            auto hook = global.params.tracegc ? Id._d_arrayliteralTXTrace : Id._d_arrayliteralTX;
+            if (!verifyHookExist(e.loc, *sc, hook, "array literal"))
+                return e;
+
+            // printf("array literal exp = %s\n", e.toChars());
+
+            /* Lower the memory allocation and initialization of `[x1, x2, ..., xn]`
+             * to `_d_arrayliteralTX!T(n)`.
+             */
+            Expression lowering = new IdentifierExp(e.loc, Id.empty);
+            lowering = new DotIdExp(e.loc, lowering, Id.object);
+            auto tiargs = new Objects();
+            /* Remove `inout`, `const`, `immutable` and `shared` to reduce
+             * the number of generated `_d_arrayliteralTX` instances.
+             */
+            // bool isShared;
+            // tiargs.push(removeTypeQualifiers(e.type.nextOf(), isShared));
+            tiargs.push(e.type);
+            // printf("type = %s\n", e.type.toChars());
+            lowering = new DotTemplateInstanceExp(e.loc, lowering, hook, tiargs);
+
+            auto arguments = new Expressions();
+            if (global.params.tracegc)
+            {
+                // auto funcname = (sc.callsc && sc.callsc.func) ?
+                //     sc.callsc.func.toPrettyChars() : (sc.func ? sc.func.toPrettyChars() : sc._module.toPrettyChars());
+                // arguments.push(new StringExp(e.loc, e.loc.filename));
+                // arguments.push(new IntegerExp(e.loc, e.loc.linnum, Type.tint32));
+                // arguments.push(new StringExp(e.loc, funcname));
+
+                // TODO: fix the errors above
+            }
+            arguments.push(new IntegerExp(e.loc, length, Type.tsize_t));
+            // arguments.push(new IntegerExp(e.loc, isShared, Type.tbool));
+
+            lowering = new CallExp(e.loc, lowering, arguments);
+            // printf("lowering before semantic = %s\n", lowering.toChars());
+            e.lowering = lowering.expressionSemantic(sc);
+            // printf("lowering of %s = %s\n", e.toChars(), e.lowering.toChars());
+        }
+
+        return e;
+    }
+
     Expression visitArrayLiteral(ArrayLiteralExp e)
     {
-        auto result = visit(e);
+        auto result = tryLowerToArrayLiteral(visit(e));
 
         Type tb = result.type.toBasetype();
+        // printf("implicit cast res = %s; type = %s\n", result.toChars(), tb.toChars());
         if (auto ta = tb.isTypeDArray())
             if (global.params.useTypeInfo && Type.dtypeinfo)
                 semanticTypeInfo(sc, ta.next);

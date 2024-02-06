@@ -16,10 +16,10 @@ version (D_ProfileGC)
     version (D_TypeInfo) import core.internal.array.utils : TraceHook, gcStatsPure, accumulatePure;
 }
 
-debug(PRINTF)
-{
-    import core.stdc.stdio;
-}
+// debug(PRINTF)
+// {
+//     import core.stdc.stdio;
+// }
 
 /**
  * Does array initialization (not assignment) from another array of the same element type.
@@ -53,7 +53,7 @@ Tarr _d_arrayctor(Tarr : T[], T)(return scope Tarr to, scope Tarr from, char* ma
     import core.stdc.stdint : uintptr_t;
     debug(PRINTF) import core.stdc.stdio : printf;
 
-    debug(PRINTF) printf("_d_arrayctor(from = %p,%d) size = %d\n", from.ptr, from.length, T.sizeof);
+    // debug(PRINTF) printf("_d_arrayctor(from = %p,%d) size = %d\n", from.ptr, from.length, T.sizeof);
 
     void[] vFrom = (cast(void*) from.ptr)[0..from.length];
     void[] vTo = (cast(void*) to.ptr)[0..to.length];
@@ -361,7 +361,7 @@ T[] _d_newarrayU(T)(size_t length, bool isShared=false) @trusted
     size_t elemSize = T.sizeof;
     size_t arraySize;
 
-    debug(PRINTF) printf("_d_newarrayU(length = x%zu, size = %zu)\n", length, elemSize);
+    // debug(PRINTF) printf("_d_newarrayU(length = x%zu, size = %zu)\n", length, elemSize);
     if (length == 0 || elemSize == 0)
         return null;
 
@@ -403,7 +403,7 @@ Lcontinue:
     auto info = __arrayAlloc!UnqT(arraySize);
     if (!info.base)
         goto Loverflow;
-    debug(PRINTF) printf("p = %p\n", info.base);
+    // debug(PRINTF) printf("p = %p\n", info.base);
 
     auto arrstart = __arrayStart(info);
 
@@ -516,7 +516,7 @@ version (D_ProfileGC)
  */
 Tarr _d_newarraymTX(Tarr : U[], T, U)(size_t[] dims, bool isShared=false) @trusted
 {
-    debug(PRINTF) printf("_d_newarraymTX(dims.length = %d)\n", dims.length);
+    // debug(PRINTF) printf("_d_newarraymTX(dims.length = %d)\n", dims.length);
 
     if (dims.length == 0)
         return null;
@@ -599,6 +599,27 @@ version (D_ProfileGC)
     }
 }
 
+inout(TypeInfo) unqualify(return scope inout(TypeInfo) cti) pure nothrow @nogc
+{
+    TypeInfo ti = cast() cti;
+    while (ti)
+    {
+        // avoid dynamic type casts
+        auto tti = typeid(ti);
+        if (tti is typeid(TypeInfo_Const))
+            ti = (cast(TypeInfo_Const)cast(void*)ti).base;
+        else if (tti is typeid(TypeInfo_Invariant))
+            ti = (cast(TypeInfo_Invariant)cast(void*)ti).base;
+        else if (tti is typeid(TypeInfo_Shared))
+            ti = (cast(TypeInfo_Shared)cast(void*)ti).base;
+        else if (tti is typeid(TypeInfo_Inout))
+            ti = (cast(TypeInfo_Inout)cast(void*)ti).base;
+        else
+            break;
+    }
+    return ti;
+}
+
 /**
  * Allocate an array literal
  *
@@ -622,9 +643,35 @@ version (D_ProfileGC)
  *
  * Returns: pointer to allocated array
  */
-T* _d_arrayliteralTX(T)(size_t length, bool isShared=true) @trusted
+void* _d_arrayliteralTX(Tarr : T[], T)(size_t length) @trusted
 {
-    return _d_newarrayU!T(length, isShared).ptr;
+    // return _d_newarrayU!T(length, isShared).ptr;
+
+    import core.internal.array.utils : __arrayStart, __setArrayAllocLength, __arrayAlloc;
+
+    auto ti = typeid(Tarr);
+    auto tinext = unqualify(ti.next);
+    auto sizeelem = tinext.tsize;              // array element size
+    void* result;
+
+    debug(PRINTF) 
+    {
+        import core.stdc.stdio;
+    }
+
+    debug(PRINTF) printf("_d_arrayliteralTX(sizeelem = %zu, length = %zu)\n", sizeelem, length);
+    if (length == 0 || sizeelem == 0)
+        result = null;
+    else
+    {
+        auto allocsize = length * sizeelem;
+        debug(PRINTF) printf("_d_arrayliteralTX(allocsize = %zu)\n", allocsize);
+        auto info = __arrayAlloc(allocsize, ti, tinext);
+        auto isshared = typeid(ti) is typeid(TypeInfo_Shared);
+        __setArrayAllocLength(info, allocsize, isshared, tinext);
+        result = __arrayStart(info);
+    }
+    return result;
 }
 
 unittest
@@ -642,12 +689,12 @@ version (D_ProfileGC)
     /**
      * TraceGC wrapper around $(REF _d_arrayliteralTX, core,internal,array,construction).
      */
-    T[] _d_arrayliteralTXTrace(T)(string file, int line, string funcname, size_t length, bool isShared) @trusted
+    void* _d_arrayliteralTXTrace(T)(string file, int line, string funcname, size_t length) @trusted
     {
         version (D_TypeInfo)
         {
             mixin(TraceHook!(T.stringof, "_d_arrayliteralTX"));
-            return _d_arrayliteralTX!T(length, isShared);
+            return _d_arrayliteralTX!T(length);
         }
         else
             assert(0, "Cannot create array literal if compiling without support for runtime type information!");
