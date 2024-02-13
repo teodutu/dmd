@@ -1535,7 +1535,7 @@ extern(C++) Type typeSemantic(Type type, const ref Loc loc, Scope* sc)
             return mtype;
         }
         //printf("TypeFunction::semantic() this = %p\n", mtype);
-        //printf("TypeFunction::semantic() %s, sc.stc = %llx\n", mtype.toChars(), sc.stc);
+        printf("TypeFunction::semantic() %s, sc.stc = %llx\n", mtype.toChars(), sc.stc);
 
         bool errors = false;
 
@@ -1637,7 +1637,10 @@ extern(C++) Type typeSemantic(Type type, const ref Loc loc, Scope* sc)
                 errors = true;
             }
             if (tf.next.hasWild())
+            {
+                printf("tf = %s\n", tf.toChars());
                 wildreturn = true;
+            }
 
             if (tf.isreturn && !tf.isref && !tf.next.hasPointers())
             {
@@ -1730,6 +1733,7 @@ extern(C++) Type typeSemantic(Type type, const ref Loc loc, Scope* sc)
                 fparam.type = fparam.type.cAdjustParamType(sc); // adjust C array and function parameter types
 
                 Type t = fparam.type.toBasetype();
+                printf("\tparam type = %s\n", t.toChars());
 
                 /* If fparam after semantic() turns out to be a tuple, the number of parameters may
                  * change.
@@ -1917,6 +1921,8 @@ extern(C++) Type typeSemantic(Type type, const ref Loc loc, Scope* sc)
                     if (!isPOD || target.preferPassByRef(t))
                         fparam.storageClass |= STC.ref_;
                 }
+
+                // printf("fparam = %s; param type = %s\n", fparam.toChars(), fparam.type.toChars());
             }
 
             // Now that we completed semantic for the argument types,
@@ -2007,6 +2013,7 @@ extern(C++) Type typeSemantic(Type type, const ref Loc loc, Scope* sc)
         {
             .error(loc, "`inout` on `return` means `inout` must be on a parameter as well for `%s`", mtype.toChars());
             errors = true;
+            assert(0);
         }
         tf.isInOutParam = (wildparams & 1) != 0;
         tf.isInOutQual  = (wildparams & 2) != 0;

@@ -1169,8 +1169,11 @@ private extern(C++) final class Semantic3Visitor : Visitor
                     // check if callee destroys arguments
                     const bool paramsNeedDtor = target.isCalleeDestroyingArgs(f);
 
+                    // printf("\tfuncdecl = %s\n", funcdecl.toChars());
+
                     foreach (v; *funcdecl.parameters)
                     {
+                        // printf("\tv = %s\n", v.toChars());
                         if (v.isReference() || (v.storage_class & STC.lazy_))
                             continue;
                         if (v.needsScopeDtor())
@@ -1319,6 +1322,7 @@ private extern(C++) final class Semantic3Visitor : Visitor
                 f.isctor = true;
             sc.stc = 0;
             sc.linkage = funcdecl._linkage; // https://issues.dlang.org/show_bug.cgi?id=8496
+            printf("before typeSemantic func = %s\n", funcdecl.toChars());
             funcdecl.type = f.typeSemantic(funcdecl.loc, sc);
             sc = sc.pop();
         }
