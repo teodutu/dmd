@@ -1,6 +1,7 @@
 module core.lifetime;
 
 import core.internal.attributes : betterC;
+import object;
 
 // emplace
 /**

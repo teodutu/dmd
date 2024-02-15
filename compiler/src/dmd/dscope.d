@@ -203,6 +203,11 @@ extern (C++) struct Scope
         return sc;
     }
 
+    // extern (D) Scope* deepCopy()
+    // {
+
+    // }
+
     extern (D) Scope* push()
     {
         Scope* s = copy();

@@ -4436,6 +4436,13 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         if (global.params.useTypeInfo && Type.dtypeinfo)
             semanticTypeInfo(sc, e.type);
 
+        // Scope *s = sc;
+        // while(s)
+        // {
+        //     printf("s = %p\n", s);
+        //     s = s.enclosing;
+        // }
+        // printf("ALE: e = %s; sc = %p\n", e.toChars(), sc);
         addLowering(e, sc);
         result = e;
     }
@@ -14632,7 +14639,11 @@ Expression dotIdSemanticProp(DotIdExp exp, Scope* sc, bool gag)
                 error(exp.loc, "undefined identifier `%s` in %s `%s`, did you mean %s `%s`?", exp.ident.toChars(), ie.sds.kind(), ie.sds.toPrettyChars(), s.kind(), s.toChars());
         }
         else
+        {
+            printf("s = %s\n", s.toChars());
             error(exp.loc, "undefined identifier `%s` in %s `%s`", exp.ident.toChars(), ie.sds.kind(), ie.sds.toPrettyChars());
+            assert(0);
+        }
         return ErrorExp.get();
     }
     else if (t1b.ty == Tpointer && exp.e1.type.ty != Tenum &&

@@ -233,8 +233,8 @@ UnionExp copyLiteral(Expression e)
         emplaceExp!(ArrayLiteralExp)(&ue, e.loc, e.type, elements);
 
         ArrayLiteralExp r = ue.exp().isArrayLiteralExp();
-        replaceLowering(e, r);
         r.ownedByCtfe = OwnedBy.ctfe;
+        replaceLowering(e, r);
         return ue;
     }
     if (auto aae = e.isAssocArrayLiteralExp())

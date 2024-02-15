@@ -1,5 +1,7 @@
 module dmd.lowering;
 
+import core.stdc.stdio;
+
 import dmd.arraytypes;
 import dmd.dsymbol;
 import dmd.dsymbolsem;
@@ -13,6 +15,7 @@ import dmd.identifier;
 import dmd.location;
 import dmd.mtype;
 import dmd.root.string;
+import dmd.rootobject;
 import dmd.tokens;
 
 
@@ -26,6 +29,11 @@ static Lowered[] needsLowering;
 
 void addLowering(Expression e, Scope* sc)
 {
+    if (auto ale = e.isArrayLiteralExp())
+        if (ale.ownedByCtfe != OwnedBy.code)
+            return;
+
+    sc.setNoFree();
     needsLowering ~= Lowered(e, sc);
 }
 
@@ -35,40 +43,58 @@ Scope* removeLowering(Expression e)
     {
         if (ne.e == e)
         {
-            needsLowering = needsLowering[0 .. i] ~ needsLowering[i + 1 .. $];
+            // needsLowering = needsLowering[0 .. i] ~ needsLowering[i + 1 .. $];
             return ne.sc;
         }
     }
 
+    // printf("Not found: %s; loc = %s\n", e.toChars(), e.loc.toChars());
     return null;
+    // assert(0);
 }
 
 void replaceLowering(Expression old, Expression newExp)
 {
     Scope* sc = removeLowering(old);
-    addLowering(newExp, sc);
+    if (sc)
+        addLowering(newExp, sc);
 }
 
 void lowerExpressions()
 {
     foreach (ne; needsLowering)
     {
-        lower(ne.e, ne.sc);
+        // printf("lower sc = %p\n", ne.sc);
+        if (!ne.sc)
+            printf("no scope: ne.e = %s; loc = \n", ne.e.toChars(), ne.e.loc.toChars());
+        else
+            lower(ne.e, ne.sc);
     }
 }
 
 void lower(Expression e, Scope* sc)
 {
+    // Scope *s = sc;
+    // while(s)
+    // {
+    //     printf("s = %p\n", s);
+    //     s = s.enclosing;
+    // }
+
     void lowerArrayLiteral(ArrayLiteralExp e)
     {
-        Type tb = e.type.toBasetype();
-        const length = e.elements ? e.elements.length : 0;
+	//if (!e.type)
+	//	printf("null type; e = %s; loc = %s\n", e.toChars(), e.loc.toChars());
+    	// printf("loc = %s; type = %p\n", e.loc.toChars(), e.type);
+	// printf("e = %s; loc = %s; type = %p\n", e.toChars(), e.loc.toChars(), e.type);
         // if (!e.onstack && tb.ty != Tsarray && !(sc.flags & SCOPE.Cfile && tb.ty == Tpointer) &&
         // printf("exp = %s; loc = %s; codegen = %d\n", e.toChars(), e.loc.toChars(), sc.needsCodegen());
         // if (length && sc.needsCodegen())
         // printf("lowering %s\n", e.toChars());
-        if (!global.params.betterC && !(sc.flags & SCOPE.Cfile))
+        if (!global.params.betterC && !e.ownedByCtfe && !(sc.flags & SCOPE.Cfile))
         {
+            Type tb = e.type.toBasetype();
+            const length = e.elements ? e.elements.length : 0;
             // printf("inside if\n");
             auto hook = global.params.tracegc ? Id._d_arrayliteralTXTrace : Id._d_arrayliteralTX;
             if (!verifyHookExist(e.loc, *sc, hook, "array literal"))

@@ -521,6 +521,8 @@ private int tryMain(size_t argc, const(char)** argv, ref Param params)
     if (global.errors)
         removeHdrFilesAndFail(params, modules);
 
+    lowerExpressions();
+
     // Scan for functions to inline
     foreach (m; modules)
     {
@@ -613,8 +615,6 @@ private int tryMain(size_t argc, const(char)** argv, ref Param params)
         if (!driverParams.oneobj || modules.length == 1)
             params.objfiles.push(mainModule.objfile.toChars());
     }
-
-    lowerExpressions();
 
     generateCodeAndWrite(modules[], libmodules[], params.libname, params.objdir,
                          driverParams.lib, params.obj, driverParams.oneobj, params.multiobj,
