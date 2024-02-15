@@ -41,6 +41,7 @@ import dmd.identifier;
 import dmd.init;
 import dmd.initsem;
 import dmd.location;
+import dmd.lowering;
 import dmd.mtype;
 import dmd.root.rmem;
 import dmd.root.array;
@@ -2530,6 +2531,7 @@ public:
                 return;
             }
             emplaceExp!(ArrayLiteralExp)(pue, e.loc, e.type, basis, expsx);
+            replaceLowering(e, pue.exp());
             auto ale = pue.exp().isArrayLiteralExp();
             ale.lowering = e.lowering;
             ale.ownedByCtfe = OwnedBy.ctfe;

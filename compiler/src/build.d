@@ -1550,7 +1550,7 @@ auto sourceFiles()
             ctorflow.d dcast.d dclass.d declaration.d delegatize.d denum.d dimport.d
             dinterpret.d dmacro.d dmangle.d dmodule.d doc.d dscope.d dstruct.d dsymbol.d dsymbolsem.d
             dtemplate.d dtoh.d dversion.d enumsem.d escape.d expression.d expressionsem.d func.d funcsem.d hdrgen.d iasm.d iasmgcc.d
-            impcnvtab.d imphint.d importc.d init.d initsem.d inline.d inlinecost.d intrange.d json.d lambdacomp.d
+            impcnvtab.d imphint.d importc.d init.d initsem.d inline.d inlinecost.d intrange.d json.d lambdacomp.d lowering.d
             mtype.d mustuse.d nogc.d nspace.d ob.d objc.d opover.d optimize.d
             parse.d parsetimevisitor.d permissivevisitor.d postordervisitor.d pragmasem.d printast.d rootobject.d safe.d sapply.d
             semantic2.d semantic3.d sideeffect.d statement.d statement_rewrite_walker.d

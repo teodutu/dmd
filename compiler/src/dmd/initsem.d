@@ -38,6 +38,7 @@ import dmd.identifier;
 import dmd.importc;
 import dmd.init;
 import dmd.location;
+import dmd.lowering;
 import dmd.mtype;
 import dmd.opover;
 import dmd.optimize;
@@ -535,6 +536,7 @@ Initializer initializerSemantic(Initializer init, Scope* sc, ref Type tx, NeedIn
             foreach (ref e; *arrayElements)
                 e = elem;
             auto ale = new ArrayLiteralExp(i.exp.loc, tb, elem, arrayElements);
+            addLowering(ale, sc); 
             // printf("initsem 534: ale = %s; loc = %s\n", ale.toChars(), ale.loc.toChars());
             return ale;
         }

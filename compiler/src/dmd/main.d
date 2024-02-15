@@ -52,6 +52,7 @@ import dmd.identifier;
 import dmd.inline;
 import dmd.link;
 import dmd.location;
+import dmd.lowering;
 import dmd.mars;
 import dmd.mtype;
 import dmd.objc;
@@ -612,6 +613,8 @@ private int tryMain(size_t argc, const(char)** argv, ref Param params)
         if (!driverParams.oneobj || modules.length == 1)
             params.objfiles.push(mainModule.objfile.toChars());
     }
+
+    lowerExpressions();
 
     generateCodeAndWrite(modules[], libmodules[], params.libname, params.objdir,
                          driverParams.lib, params.obj, driverParams.oneobj, params.multiobj,

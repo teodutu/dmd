@@ -27,6 +27,7 @@ import dmd.errors;
 import dmd.expression;
 import dmd.globals;
 import dmd.location;
+import dmd.lowering;
 import dmd.mtype;
 import dmd.root.complex;
 import dmd.root.ctfloat;
@@ -1256,6 +1257,7 @@ UnionExp Slice(Type type, Expression e1, Expression lwr, Expression upr)
             auto elements = new Expressions(cast(size_t)(iupr - ilwr));
             memcpy(elements.tdata(), es1.elements.tdata() + ilwr, cast(size_t)(iupr - ilwr) * ((*es1.elements)[0]).sizeof);
             emplaceExp!(ArrayLiteralExp)(&ue, e1.loc, type, elements);
+            replaceLowering(e1, ue.exp());
             auto ale = ue.exp().isArrayLiteralExp();
             ale.lowering = e1.isArrayLiteralExp().lowering;
         }
@@ -1513,6 +1515,7 @@ UnionExp Cat(const ref Loc loc, Type type, Expression e1, Expression e2)
         emplaceExp!(ArrayLiteralExp)(&ue, e1.loc, type, elems);
         ArrayLiteralExp dest = ue.exp().isArrayLiteralExp();
         dest.lowering = e1.isArrayLiteralExp().lowering;
+        replaceLowering(e1, dest);
         sliceAssignArrayLiteralFromString(dest, es, ea.elements.length);
         assert(ue.exp().type);
         return ue;
@@ -1531,6 +1534,7 @@ UnionExp Cat(const ref Loc loc, Type type, Expression e1, Expression e2)
         emplaceExp!(ArrayLiteralExp)(&ue, e1.loc, type, elems);
         ArrayLiteralExp dest = ue.exp().isArrayLiteralExp();
         dest.lowering = e2.isArrayLiteralExp().lowering;
+        replaceLowering(e2, dest);
         sliceAssignArrayLiteralFromString(dest, es, 0);
         assert(ue.exp().type);
         return ue;
@@ -1587,6 +1591,8 @@ UnionExp Cat(const ref Loc loc, Type type, Expression e1, Expression e2)
         auto elems = copyElements(e1, e2);
 
         emplaceExp!(ArrayLiteralExp)(&ue, e1.loc, cast(Type)null, elems);
+        removeLowering(e2);
+        replaceLowering(e1, ue.exp());
         auto ale = ue.exp().isArrayLiteralExp();
         ale.lowering = e1.isArrayLiteralExp().lowering;
 
@@ -1613,6 +1619,7 @@ UnionExp Cat(const ref Loc loc, Type type, Expression e1, Expression e2)
         auto elems = copyElements(e);
 
         emplaceExp!(ArrayLiteralExp)(&ue, e.loc, cast(Type)null, elems);
+        replaceLowering(e2, ue.exp());
         auto ale = ue.exp().isArrayLiteralExp();
         ale.lowering = e2.isArrayLiteralExp().lowering;
 
@@ -1633,6 +1640,7 @@ UnionExp Cat(const ref Loc loc, Type type, Expression e1, Expression e2)
         elems.push(e2);
 
         emplaceExp!(ArrayLiteralExp)(&ue, loc, cast(Type)null, elems);
+        replaceLowering(e1, ue.exp());
         if (auto oldAle = e1.isArrayLiteralExp())
         {
             auto newAle = ue.exp().isArrayLiteralExp();
@@ -1654,6 +1662,7 @@ UnionExp Cat(const ref Loc loc, Type type, Expression e1, Expression e2)
         auto elems = copyElements(e1, e2);
 
         emplaceExp!(ArrayLiteralExp)(&ue, loc, cast(Type)null, elems);
+        replaceLowering(e2, ue.exp());
         auto ale = ue.exp().isArrayLiteralExp();
         ale.lowering = e2.isArrayLiteralExp().lowering;
 

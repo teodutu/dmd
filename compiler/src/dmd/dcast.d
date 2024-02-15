@@ -35,6 +35,7 @@ import dmd.globals;
 import dmd.hdrgen;
 import dmd.id;
 import dmd.location;
+import dmd.lowering;
 import dmd.impcnvtab;
 import dmd.importc;
 import dmd.init;
@@ -244,7 +245,10 @@ Expression implicitCastTo(Expression e, Scope* sc, Type t)
 
     Expression visitArrayLiteral(ArrayLiteralExp e)
     {
-        auto result = tryLowerToArrayLiteral(visit(e));
+        // auto result = tryLowerToArrayLiteral(visit(e));
+        auto result = visit(e);
+        if (result.isArrayLiteralExp())
+            addLowering(result, sc);
 
         Type tb = result.type.toBasetype();
         // printf("implicit cast res = %s; type = %s\n", result.toChars(), tb.toChars());

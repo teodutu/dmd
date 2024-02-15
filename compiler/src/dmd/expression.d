@@ -37,6 +37,7 @@ import dmd.id;
 import dmd.identifier;
 import dmd.init;
 import dmd.location;
+import dmd.lowering;
 import dmd.mtype;
 import dmd.root.complex;
 import dmd.root.ctfloat;
@@ -2074,8 +2075,8 @@ extern (C++) final class ArrayLiteralExp : Expression
             null,
             basis ? basis.syntaxCopy() : null,
             arraySyntaxCopy(elements));
-        if (lowering)
-            ale.lowering = lowering.syntaxCopy();
+        // addLowering(ale);
+        // assert(0);
 
         return ale;
     }

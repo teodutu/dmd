@@ -59,6 +59,7 @@ import dmd.initsem;
 import dmd.inline;
 import dmd.intrange;
 import dmd.location;
+import dmd.lowering;
 import dmd.mtype;
 import dmd.mustuse;
 import dmd.nspace;
@@ -4452,7 +4453,9 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         if (e.type)
         {
             // printf("ale has type %s\n", e.loc.toChars());
-            result = tryLowerToArrayLiteral(e);
+            // result = tryLowerToArrayLiteral(e);
+            addLowering(e, sc);
+            result = e;
             // printf("result = %s; loc = %s\n", result.toChars(), e.loc.toChars());
             return;
         }
@@ -4489,7 +4492,9 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
         if (global.params.useTypeInfo && Type.dtypeinfo)
             semanticTypeInfo(sc, e.type);
 
-        result = tryLowerToArrayLiteral(e);
+        // result = tryLowerToArrayLiteral(e);
+        addLowering(e, sc);
+        result = e;
     }
 
     override void visit(AssocArrayLiteralExp e)
@@ -16419,28 +16424,6 @@ VarDeclaration makeThis2Argument(const ref Loc loc, Scope* sc, FuncDeclaration f
     // add `fd` to the nested refs
     vthis2.nestedrefs.push(fd);
     return vthis2;
-}
-
-/*******************************
- * Make sure that the runtime hook `id` exists.
- * Params:
- *      loc = location to use for error messages
- *      sc = current scope
- *      id = the hook identifier
- *      description = what the hook does
- *      module_ = what module the hook is located in
- * Returns:
- *      a `bool` indicating if the hook is present.
- */
-bool verifyHookExist(const ref Loc loc, ref Scope sc, Identifier id, string description, Identifier module_ = Id.object)
-{
-    Dsymbol pscopesym;
-    auto rootSymbol = sc.search(loc, Id.empty, pscopesym);
-    if (auto moduleSymbol = rootSymbol.search(loc, module_))
-        if (moduleSymbol.search(loc, id))
-          return true;
-    error(loc, "`%s.%s` not found. The current runtime does not support %.*s, or the runtime is corrupt.", module_.toChars(), id.toChars(), cast(int)description.length, description.ptr);
-    return false;
 }
 
 /***************************************

@@ -27,6 +27,7 @@ import dmd.expression;
 import dmd.func;
 import dmd.globals;
 import dmd.location;
+import dmd.lowering;
 import dmd.mtype;
 import dmd.root.bitarray;
 import dmd.root.complex;
@@ -232,6 +233,7 @@ UnionExp copyLiteral(Expression e)
         emplaceExp!(ArrayLiteralExp)(&ue, e.loc, e.type, elements);
 
         ArrayLiteralExp r = ue.exp().isArrayLiteralExp();
+        replaceLowering(e, r);
         r.lowering = ale.lowering;
         r.ownedByCtfe = OwnedBy.ctfe;
         r.lowering = ale.lowering;
@@ -1449,6 +1451,8 @@ UnionExp ctfeCat(const ref Loc loc, Type type, Expression e1, Expression e2)
         es1 = ue.exp().isArrayLiteralExp();
         es1.lowering = e1.isArrayLiteralExp().lowering;
         es1.elements.insert(es1.elements.length, copyLiteralArray(es2.elements));
+        replaceLowering(e1, ue.exp());
+        removeLowering(e2);
         return ue;
     }
     if (e1.op == EXP.arrayLiteral && e2.op == EXP.null_ && t1.nextOf().equals(t2.nextOf()))
@@ -1765,7 +1769,7 @@ Expression changeArrayLiteralLength(UnionExp* pue, const ref Loc loc, TypeArray 
         emplaceExp!(ArrayLiteralExp)(pue, loc, arrayType, elements);
         ArrayLiteralExp aae = pue.exp().isArrayLiteralExp();
         if (auto ale = oldval.isArrayLiteralExp())
-            aae.lowering = ale.lowering;
+            replaceLowering(ale, aae);
         aae.ownedByCtfe = OwnedBy.ctfe;
     }
     return pue.exp();

@@ -49,6 +49,7 @@ import dmd.importc;
 import dmd.init;
 import dmd.intrange;
 import dmd.location;
+import dmd.lowering;
 import dmd.mtype;
 import dmd.mustuse;
 import dmd.nogc;
