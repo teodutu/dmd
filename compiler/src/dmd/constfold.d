@@ -1258,8 +1258,6 @@ UnionExp Slice(Type type, Expression e1, Expression lwr, Expression upr)
             memcpy(elements.tdata(), es1.elements.tdata() + ilwr, cast(size_t)(iupr - ilwr) * ((*es1.elements)[0]).sizeof);
             emplaceExp!(ArrayLiteralExp)(&ue, e1.loc, type, elements);
             replaceLowering(e1, ue.exp());
-            auto ale = ue.exp().isArrayLiteralExp();
-            ale.lowering = e1.isArrayLiteralExp().lowering;
         }
     }
     else
@@ -1514,7 +1512,6 @@ UnionExp Cat(const ref Loc loc, Type type, Expression e1, Expression e2)
         }
         emplaceExp!(ArrayLiteralExp)(&ue, e1.loc, type, elems);
         ArrayLiteralExp dest = ue.exp().isArrayLiteralExp();
-        dest.lowering = e1.isArrayLiteralExp().lowering;
         replaceLowering(e1, dest);
         sliceAssignArrayLiteralFromString(dest, es, ea.elements.length);
         assert(ue.exp().type);
@@ -1533,7 +1530,6 @@ UnionExp Cat(const ref Loc loc, Type type, Expression e1, Expression e2)
         }
         emplaceExp!(ArrayLiteralExp)(&ue, e1.loc, type, elems);
         ArrayLiteralExp dest = ue.exp().isArrayLiteralExp();
-        dest.lowering = e2.isArrayLiteralExp().lowering;
         replaceLowering(e2, dest);
         sliceAssignArrayLiteralFromString(dest, es, 0);
         assert(ue.exp().type);
@@ -1593,8 +1589,6 @@ UnionExp Cat(const ref Loc loc, Type type, Expression e1, Expression e2)
         emplaceExp!(ArrayLiteralExp)(&ue, e1.loc, cast(Type)null, elems);
         removeLowering(e2);
         replaceLowering(e1, ue.exp());
-        auto ale = ue.exp().isArrayLiteralExp();
-        ale.lowering = e1.isArrayLiteralExp().lowering;
 
         e = ue.exp();
         if (type.toBasetype().ty == Tsarray)
@@ -1620,8 +1614,6 @@ UnionExp Cat(const ref Loc loc, Type type, Expression e1, Expression e2)
 
         emplaceExp!(ArrayLiteralExp)(&ue, e.loc, cast(Type)null, elems);
         replaceLowering(e2, ue.exp());
-        auto ale = ue.exp().isArrayLiteralExp();
-        ale.lowering = e2.isArrayLiteralExp().lowering;
 
         e = ue.exp();
         if (type.toBasetype().ty == Tsarray)
@@ -1641,11 +1633,6 @@ UnionExp Cat(const ref Loc loc, Type type, Expression e1, Expression e2)
 
         emplaceExp!(ArrayLiteralExp)(&ue, loc, cast(Type)null, elems);
         replaceLowering(e1, ue.exp());
-        if (auto oldAle = e1.isArrayLiteralExp())
-        {
-            auto newAle = ue.exp().isArrayLiteralExp();
-            newAle.lowering = oldAle.lowering;
-        }
 
         e = ue.exp();
         if (type.toBasetype().ty == Tsarray)
@@ -1663,8 +1650,6 @@ UnionExp Cat(const ref Loc loc, Type type, Expression e1, Expression e2)
 
         emplaceExp!(ArrayLiteralExp)(&ue, loc, cast(Type)null, elems);
         replaceLowering(e2, ue.exp());
-        auto ale = ue.exp().isArrayLiteralExp();
-        ale.lowering = e2.isArrayLiteralExp().lowering;
 
         e = ue.exp();
         if (type.toBasetype().ty == Tsarray)

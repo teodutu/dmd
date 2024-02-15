@@ -234,9 +234,7 @@ UnionExp copyLiteral(Expression e)
 
         ArrayLiteralExp r = ue.exp().isArrayLiteralExp();
         replaceLowering(e, r);
-        r.lowering = ale.lowering;
         r.ownedByCtfe = OwnedBy.ctfe;
-        r.lowering = ale.lowering;
         return ue;
     }
     if (auto aae = e.isAssocArrayLiteralExp())
@@ -1449,7 +1447,6 @@ UnionExp ctfeCat(const ref Loc loc, Type type, Expression e1, Expression e2)
         ArrayLiteralExp es2 = e2.isArrayLiteralExp();
         emplaceExp!(ArrayLiteralExp)(&ue, es1.loc, type, copyLiteralArray(es1.elements));
         es1 = ue.exp().isArrayLiteralExp();
-        es1.lowering = e1.isArrayLiteralExp().lowering;
         es1.elements.insert(es1.elements.length, copyLiteralArray(es2.elements));
         replaceLowering(e1, ue.exp());
         removeLowering(e2);
